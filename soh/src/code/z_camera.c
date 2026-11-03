@@ -52,6 +52,10 @@ s32 Camera_FreeLookEnabled(void) {
 // Drag-to-look from the touch screen, see soh/Enhancements/controls/MobileBridge.cpp
 void TouchLook_ApplyThirdPerson(f32* newCamX, f32* newCamY);
 s32 TouchLook_FramesSinceDrag(void);
+// Camera debug readout (Settings > Controls > Show Camera Debug Info), drawn in SohGui/Menu.cpp
+const char* gTouchDbgCameraFunc = "";
+s32 gTouchDbgManualChecks = 0;
+s32 gTouchDbgManualCamera = 0;
 #endif
 
 /*===============================================================*/
@@ -1455,6 +1459,7 @@ s32 SetCameraManual(Camera* camera) {
     }
 
 #ifdef __ANDROID__
+    gTouchDbgManualChecks++;
     {
         // "Camera follows movement" (on by default): after looking around by dragging, walking
         // with the stick hands the camera back to the normal follow camera. Off: the camera keeps
@@ -1473,6 +1478,7 @@ s32 SetCameraManual(Camera* camera) {
             camera->play->camY = eyeAdjustment.pitch;
         }
     }
+    gTouchDbgManualCamera = camera->play->manualCamera;
 #endif
 
     if (camera->play->manualCamera) {
@@ -7642,6 +7648,11 @@ Vec3s Camera_Update(Camera* camera) {
     }
 
     if (sOOBTimer < 200) {
+#ifdef __ANDROID__
+        if (camera == camera->play->cameraPtrs[camera->play->activeCamera]) {
+            gTouchDbgCameraFunc = sCameraFunctionNames[sCameraSettings[camera->setting].cameraModes[camera->mode].funcIdx];
+        }
+#endif
         sCameraFunctions[sCameraSettings[camera->setting].cameraModes[camera->mode].funcIdx](camera);
     } else if (camera->player != NULL) {
         OLib_Vec3fDiffToVecSphGeo(&eyeAtAngle, &camera->at, &camera->eye);

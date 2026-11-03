@@ -4,6 +4,8 @@
 #ifdef __ANDROID__
 
 #include <jni.h>
+#include <cmath>
+#include <imgui.h>
 #include <algorithm>
 #include <atomic>
 #include <mutex>
@@ -145,6 +147,40 @@ void Mobile_StartFrame() {
     }
 }
 
+// Camera debug readout, drawn every frame from SohGui/Menu.cpp when enabled.
+extern const char* gTouchDbgCameraFunc;
+extern s32 gTouchDbgManualChecks;
+extern s32 gTouchDbgManualCamera;
+s32 Camera_FreeLookEnabled(void);
+static float sDbgDragTotal = 0.0f;
+static s32 sDbgDragEvents = 0;
+
+void TouchLook_DrawDebug() {
+    if (!CVarGetInteger(CVAR_SETTING("Mobile.CameraDebug"), 0)) {
+        return;
+    }
+    static s32 checks = 0;
+    static s32 lastFrameChecks = 0;
+    checks = gTouchDbgManualChecks;
+    gTouchDbgManualChecks = 0;
+    lastFrameChecks = checks;
+    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.6f);
+    ImGui::Begin("Camera debug", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoInputs |
+                     ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
+    ImGui::Text("Touch drags received: %d (total %.0f dp)", sDbgDragEvents, sDbgDragTotal);
+    ImGui::Text("This frame: dx %.1f dy %.1f, frames since drag %d", sFrameX, sFrameY, sFramesSinceDrag);
+    ImGui::Text("Touch controls showing: %d", (int)sTouchControlsVisible.load());
+    ImGui::Text("Drag to look %d, Free Look %d, follows movement %d", CVarGetInteger(CVAR_SETTING("Mobile.DragToLook"), 1),
+                CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0),
+                CVarGetInteger(CVAR_SETTING("Mobile.CameraFollowsMovement"), 1));
+    ImGui::Text("Free camera allowed %d, checks/frame %d, manual camera %d", Camera_FreeLookEnabled(), lastFrameChecks,
+                gTouchDbgManualCamera);
+    ImGui::Text("Camera function: %s", gTouchDbgCameraFunc != nullptr ? gTouchDbgCameraFunc : "?");
+    ImGui::End();
+}
+
 s32 TouchLook_FramesSinceDrag() {
     return sFramesSinceDrag;
 }
@@ -167,6 +203,8 @@ JNIEXPORT void JNICALL Java_com_dishii_soh_MainActivity_addLookDelta(JNIEnv* env
     std::lock_guard<std::mutex> lock(sMutex);
     sPendingX += dxDp;
     sPendingY += dyDp;
+    sDbgDragEvents++;
+    sDbgDragTotal += std::fabs(dxDp) + std::fabs(dyDp);
 }
 
 JNIEXPORT void JNICALL Java_com_dishii_soh_MainActivity_nativeSaveState(JNIEnv* env, jobject obj, jint slot,

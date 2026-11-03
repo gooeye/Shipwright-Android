@@ -497,9 +497,14 @@ void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors me
     }
 }
 
+#ifdef __ANDROID__
+extern "C" void TouchLook_DrawDebug();
+#endif
+
 void Menu::Draw() {
     TouchScroll::Update();
 #ifdef __ANDROID__
+    TouchLook_DrawDebug();
     // The touch controls hide while the menu is open, however it was opened or closed.
     static int sNotifiedVisible = -1;
     if ((int)IsVisible() != sNotifiedVisible) {
