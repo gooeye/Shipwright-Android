@@ -588,6 +588,7 @@ public class MainActivity extends SDLActivity {
     public native void setAxis(int axis, short value);
     public native void addLookDelta(float dxDp, float dyDp);
     private native void nativeSaveState(int slot, boolean load);
+    private native void nativeSetPaused(boolean paused);
     private native boolean nativeHasSaveState(int slot);
     private native void nativeSetTouchControlsVisible(boolean visible);
     private native int nativeGetSetting(String name, int defaultValue);
@@ -729,7 +730,7 @@ public class MainActivity extends SDLActivity {
         super.onPause();
         if (showMenu) {
             touchControls.releaseAll();
-            pausedByMenu = true; // keeps SDL from resuming the game in onResume
+            pauseGame();
             quickMenu.show();
         }
     }
@@ -787,9 +788,9 @@ public class MainActivity extends SDLActivity {
             return;
         }
         touchControls.releaseAll();
-        pausedByMenu = true;
-        pauseNativeThread();
+        pauseGame();
         quickMenu.show();
+        keepFullscreen();
     }
 
     private void closePauseMenu() {
@@ -797,21 +798,28 @@ public class MainActivity extends SDLActivity {
         resumeFromMenu();
     }
 
-    private void resumeFromMenu() {
-        if (pausedByMenu) {
-            pausedByMenu = false;
-            super.resumeNativeThread();
+    // The game loop waits in native code while paused; SDL's own pause isn't used, since that
+    // also drops fullscreen and shows the system bars.
+    private void pauseGame() {
+        if (!pausedByMenu) {
+            pausedByMenu = true;
+            nativeSetPaused(true);
         }
     }
 
-    // SDL resumes the game when the app returns to the foreground; keep it paused if the pause
-    // menu or the layout editor is still open.
-    @Override
-    protected void resumeNativeThread() {
+    private void resumeFromMenu() {
         if (pausedByMenu) {
-            return;
+            pausedByMenu = false;
+            nativeSetPaused(false);
         }
-        super.resumeNativeThread();
+        keepFullscreen();
+    }
+
+    private void keepFullscreen() {
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
     }
 
     // Back opens the pause menu (or closes whatever is open on top of the game). A gamepad's own

@@ -38,7 +38,7 @@
     <string name="quick_slot_saved">Saved</string>
     <string name="quick_save_state">Save state</string>
     <string name="quick_load_state">Load state</string>
-    <string name="quick_states_note">A state snapshots this exact moment. States last until the app closes and only load in the room they were saved in. Use the in-game save for real progress.</string>
+    <string name="quick_states_note">Snapshots of this moment. They last until the app closes and only load in the room they were saved in.</string>
     <string name="quick_controls">Controls</string>
     <string name="quick_on">On</string>
     <string name="quick_off">Off</string>
@@ -46,13 +46,18 @@
     <string name="toggle_move_first_person">Walk in 1st person</string>
     <string name="toggle_vibration">Vibration</string>
     <string name="quick_settings">Game settings</string>
-    <string name="quick_edit_controls">Edit controls</string>
-    <string name="quick_hide_controls">Hide controls</string>
-    <string name="quick_show_controls">Show controls</string>
+    <string name="quick_settings_sub">Graphics, sound, enhancements, controller mapping</string>
+    <string name="quick_edit_controls">Customize touch controls</string>
+    <string name="quick_edit_controls_sub">Move, resize, hide or reassign the on-screen buttons</string>
+    <string name="quick_hide_controls">Hide touch controls</string>
+    <string name="quick_show_controls">Show touch controls</string>
+    <string name="quick_toggle_controls_sub">Handy when playing with a controller</string>
 
-    <string name="hint_first_run">Tap ☰ (or Back) to pause, save states and edit the controls. Drag the screen to look around.</string>
+    <string name="hint_first_run">Drag anywhere on the screen to look around. Tap ☰ to pause, save states or customize these buttons.</string>
     <string name="gamepad_connected">Controller connected: touch controls hidden</string>
-    <string name="editor_hint">Drag a control to move it. Pinch or use the slider to resize.</string>
+    <string name="editor_hint">Tap a control to select it, then drag to move it or pinch to resize.</string>
+    <string name="editor_action">Does: %1$s</string>
+    <string name="editor_action_title">What this button does</string>
     <string name="editor_size">Size %1$d%%</string>
     <string name="editor_opacity">Opacity %1$d%%</string>
     <string name="editor_hide">Hide</string>

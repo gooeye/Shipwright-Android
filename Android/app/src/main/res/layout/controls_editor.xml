@@ -97,5 +97,15 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:max="80" />
+
+        <Button
+            android:id="@+id/editor_action"
+            style="@style/QuickTile"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginStart="6dp"
+            android:minWidth="96dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
     </LinearLayout>
 </LinearLayout>

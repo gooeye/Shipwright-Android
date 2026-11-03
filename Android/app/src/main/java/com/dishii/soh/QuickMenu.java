@@ -36,7 +36,7 @@ final class QuickMenu {
     private final View root;
     private final View card;
     private final Button loadButton;
-    private final Button toggleControls;
+    private final View toggleControls;
     private final View[] slotViews = new View[SLOT_COUNT];
     private final List<Runnable> toggleRefreshers = new ArrayList<>();
     private int selectedSlot = 1;
@@ -56,9 +56,14 @@ final class QuickMenu {
         root.findViewById(R.id.quick_save_state).setOnClickListener(v -> listener.onSaveState(selectedSlot));
         loadButton = root.findViewById(R.id.quick_load_state);
         loadButton.setOnClickListener(v -> listener.onLoadState(selectedSlot));
-        root.findViewById(R.id.quick_settings).setOnClickListener(v -> listener.onOpenSettings());
-        root.findViewById(R.id.quick_edit_controls).setOnClickListener(v -> listener.onEditControls());
-        toggleControls = root.findViewById(R.id.quick_toggle_controls);
+        View edit = setupRow(R.id.quick_edit_controls, R.drawable.ic_tune, R.string.quick_edit_controls,
+                R.string.quick_edit_controls_sub);
+        edit.setBackgroundResource(R.drawable.quick_tile_accent);
+        edit.setOnClickListener(v -> listener.onEditControls());
+        setupRow(R.id.quick_settings, R.drawable.ic_settings, R.string.quick_settings, R.string.quick_settings_sub)
+                .setOnClickListener(v -> listener.onOpenSettings());
+        toggleControls = setupRow(R.id.quick_toggle_controls, R.drawable.ic_eye, R.string.quick_hide_controls,
+                R.string.quick_toggle_controls_sub);
         toggleControls.setOnClickListener(v -> listener.onToggleControls());
 
         LinearLayout slots = root.findViewById(R.id.quick_slots);
@@ -79,6 +84,14 @@ final class QuickMenu {
             });
             slotViews[i] = chip;
         }
+    }
+
+    private View setupRow(int id, int icon, int title, int subtitle) {
+        View row = root.findViewById(id);
+        ((android.widget.ImageView) row.findViewById(R.id.action_icon)).setImageResource(icon);
+        ((TextView) row.findViewById(R.id.action_title)).setText(title);
+        ((TextView) row.findViewById(R.id.action_subtitle)).setText(subtitle);
+        return row;
     }
 
     /** Adds an on/off chip to the Controls row. */
@@ -115,6 +128,12 @@ final class QuickMenu {
         }
         showing = true;
         refresh();
+        // As wide as the two columns need, but never wider than the screen.
+        float density = context.getResources().getDisplayMetrics().density;
+        int screen = context.getResources().getDisplayMetrics().widthPixels;
+        ViewGroup.LayoutParams lp = card.getLayoutParams();
+        lp.width = Math.min(Math.round(680 * density), screen - Math.round(32 * density));
+        card.setLayoutParams(lp);
         root.setVisibility(View.VISIBLE);
         root.setAlpha(0f);
         root.animate().alpha(1f).setDuration(140).withEndAction(null).start();
@@ -145,7 +164,7 @@ final class QuickMenu {
         for (Runnable r : toggleRefreshers) {
             r.run();
         }
-        toggleControls.setText(listener.areControlsHidden() ? R.string.quick_show_controls
-                                                            : R.string.quick_hide_controls);
+        ((TextView) toggleControls.findViewById(R.id.action_title)).setText(
+                listener.areControlsHidden() ? R.string.quick_show_controls : R.string.quick_hide_controls);
     }
 }

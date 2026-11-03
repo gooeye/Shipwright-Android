@@ -55,12 +55,65 @@ final class TouchControls {
         float offsetY; // fraction of the overlay height
         float scale = 1f;
         boolean hidden;
+        String defaultAction; // for single buttons that can be reassigned, else null
+        String action;
         final RectF base = new RectF(); // untransformed bounds, overlay coordinates
 
         Group(String key, int labelRes, View... views) {
             this.key = key;
             this.labelRes = labelRes;
             this.views = views;
+        }
+    }
+
+    // What a reassignable on-screen button can do: key, label, and either a virtual controller
+    // button or a right-stick direction (the C buttons).
+    private static final String[] ACTION_KEYS = { "A", "B", "Z", "L", "R", "START", "CUP", "CDOWN", "CLEFT",
+            "CRIGHT", "DUP", "DDOWN", "DLEFT", "DRIGHT", "X", "Y" };
+    private static final String[] ACTION_LABELS = { "A", "B", "Z", "L", "R", "Start", "C\u2191", "C\u2193", "C\u2190",
+            "C\u2192", "D\u2191", "D\u2193", "D\u2190", "D\u2192", "X", "Y" };
+    private static final String[] ACTION_NAMES = { "A button", "B button", "Z trigger", "L button", "R button",
+            "Start", "C up", "C down", "C left", "C right", "D-pad up", "D-pad down", "D-pad left", "D-pad right",
+            "X (not mapped by default)", "Y (not mapped by default)" };
+    private static final int[] RELEASE_BUTTONS = { ControllerButtons.BUTTON_A, ControllerButtons.BUTTON_B,
+            ControllerButtons.BUTTON_X, ControllerButtons.BUTTON_Y, ControllerButtons.BUTTON_BACK,
+            ControllerButtons.BUTTON_START, ControllerButtons.BUTTON_LB, ControllerButtons.BUTTON_RB,
+            ControllerButtons.AXIS_RT, ControllerButtons.BUTTON_DPAD_UP, ControllerButtons.BUTTON_DPAD_DOWN,
+            ControllerButtons.BUTTON_DPAD_LEFT, ControllerButtons.BUTTON_DPAD_RIGHT };
+
+    private static int actionIndex(String key) {
+        for (int i = 0; i < ACTION_KEYS.length; i++) {
+            if (ACTION_KEYS[i].equals(key)) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private void sendAction(String key, boolean down) {
+        switch (key) {
+            case "A": input.setButton(ControllerButtons.BUTTON_A, down); break;
+            case "B": input.setButton(ControllerButtons.BUTTON_B, down); break;
+            case "X": input.setButton(ControllerButtons.BUTTON_X, down); break;
+            case "Y": input.setButton(ControllerButtons.BUTTON_Y, down); break;
+            case "Z": input.setButton(ControllerButtons.AXIS_RT, down); break;
+            case "L": input.setButton(ControllerButtons.BUTTON_LB, down); break;
+            case "R": input.setButton(ControllerButtons.BUTTON_RB, down); break;
+            case "START": input.setButton(ControllerButtons.BUTTON_START, down); break;
+            case "DUP": input.setButton(ControllerButtons.BUTTON_DPAD_UP, down); break;
+            case "DDOWN": input.setButton(ControllerButtons.BUTTON_DPAD_DOWN, down); break;
+            case "DLEFT": input.setButton(ControllerButtons.BUTTON_DPAD_LEFT, down); break;
+            case "DRIGHT": input.setButton(ControllerButtons.BUTTON_DPAD_RIGHT, down); break;
+            case "CUP": input.setAxis(ControllerButtons.AXIS_RY, down ? Short.MIN_VALUE : 0); break;
+            case "CDOWN": input.setAxis(ControllerButtons.AXIS_RY, down ? Short.MAX_VALUE : 0); break;
+            case "CLEFT": input.setAxis(ControllerButtons.AXIS_RX, down ? Short.MIN_VALUE : 0); break;
+            case "CRIGHT": input.setAxis(ControllerButtons.AXIS_RX, down ? Short.MAX_VALUE : 0); break;
+        }
+    }
+
+    private void showActionLabel(Group g) {
+        if (g.action != null && g.views[0] instanceof TextView) {
+            ((TextView) g.views[0]).setText(ACTION_LABELS[actionIndex(g.action)]);
         }
     }
 
@@ -82,7 +135,6 @@ final class TouchControls {
 
     private final List<Group> groups = new ArrayList<>();
     private final Map<View, Group> groupOf = new HashMap<>();
-    private final List<Integer> boundButtons = new ArrayList<>();
     private float opacity;
     private boolean controlsHidden; // the eye button
     private boolean hiddenForGamepad; // hidden automatically because a controller is connected
@@ -104,18 +156,18 @@ final class TouchControls {
         joystick = root.findViewById(R.id.left_joystick);
         toggleButton = root.findViewById(R.id.buttonToggle);
 
-        bindButton(R.id.buttonA, ControllerButtons.BUTTON_A);
-        bindButton(R.id.buttonB, ControllerButtons.BUTTON_B);
-        bindButton(R.id.buttonX, ControllerButtons.BUTTON_X);
-        bindButton(R.id.buttonY, ControllerButtons.BUTTON_Y);
+        bindButton(R.id.buttonA);
+        bindButton(R.id.buttonB);
+        bindButton(R.id.buttonX);
+        bindButton(R.id.buttonY);
         bindCButton(R.id.buttonDpadUp, ControllerButtons.AXIS_RY, 1);
         bindCButton(R.id.buttonDpadDown, ControllerButtons.AXIS_RY, -1);
         bindCButton(R.id.buttonDpadLeft, ControllerButtons.AXIS_RX, 1);
         bindCButton(R.id.buttonDpadRight, ControllerButtons.AXIS_RX, -1);
-        bindButton(R.id.buttonLB, ControllerButtons.BUTTON_LB);
-        bindButton(R.id.buttonRB, ControllerButtons.BUTTON_RB);
-        bindButton(R.id.buttonZ, ControllerButtons.AXIS_RT);
-        bindButton(R.id.buttonStart, ControllerButtons.BUTTON_START);
+        bindButton(R.id.buttonLB);
+        bindButton(R.id.buttonRB);
+        bindButton(R.id.buttonZ);
+        bindButton(R.id.buttonStart);
         setupJoystick((FrameLayout) joystick, root.findViewById(R.id.left_joystick_knob));
         setupLookArea(root.findViewById(R.id.right_screen_area));
 
@@ -282,7 +334,7 @@ final class TouchControls {
 
     /** Lets go of every button and centers the sticks, e.g. before pausing. */
     void releaseAll() {
-        for (int button : boundButtons) {
+        for (int button : RELEASE_BUTTONS) {
             input.setButton(button, false);
         }
         input.setAxis(ControllerButtons.AXIS_LX, (short) 0);
@@ -307,17 +359,23 @@ final class TouchControls {
     // ---------------------------------------------------------------------------------------
 
     @SuppressLint("ClickableViewAccessibility")
-    private void bindButton(int viewId, int buttonNum) {
-        boundButtons.add(buttonNum);
+    /** A reassignable button: sends whatever its group's action currently is. */
+    private void bindButton(int viewId) {
         root.findViewById(viewId).setOnTouchListener((v, event) -> {
             switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    input.setButton(buttonNum, true);
+                case MotionEvent.ACTION_DOWN: {
+                    Group g = groupOf.get(v);
+                    String action = g != null && g.action != null ? g.action : "A";
+                    v.setTag(action); // release what was pressed, even if reassigned meanwhile
+                    sendAction(action, true);
                     pressFeedback(v, true);
                     break;
+                }
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
-                    input.setButton(buttonNum, false);
+                    if (v.getTag() instanceof String) {
+                        sendAction((String) v.getTag(), false);
+                    }
                     pressFeedback(v, false);
                     break;
             }
@@ -475,6 +533,15 @@ final class TouchControls {
     // ---------------------------------------------------------------------------------------
 
     private void addGroup(Group group) {
+        switch (group.key) {
+            case "a": case "b": case "x": case "y": case "l": case "r": case "z":
+                group.defaultAction = group.key.toUpperCase(java.util.Locale.ROOT);
+                break;
+            case "start":
+                group.defaultAction = "START";
+                break;
+        }
+        group.action = group.defaultAction;
         groups.add(group);
         for (View v : group.views) {
             groupOf.put(v, group);
@@ -490,6 +557,10 @@ final class TouchControls {
             g.scale = clamp(prefs.getFloat(k + "scale", 1f), MIN_SCALE, MAX_SCALE);
             // X and Y aren't mapped to anything in the game by default, so they start hidden.
             g.hidden = prefs.getBoolean(k + "hidden", g.key.equals("x") || g.key.equals("y"));
+            if (g.defaultAction != null) {
+                g.action = ACTION_KEYS[actionIndex(prefs.getString(k + "action", g.defaultAction))];
+                showActionLabel(g);
+            }
         }
     }
 
@@ -502,6 +573,9 @@ final class TouchControls {
             e.putFloat(k + "y", g.offsetY);
             e.putFloat(k + "scale", g.scale);
             e.putBoolean(k + "hidden", g.hidden);
+            if (g.action != null) {
+                e.putString(k + "action", g.action);
+            }
         }
         e.apply();
     }
@@ -512,7 +586,9 @@ final class TouchControls {
             g.offsetX = 0f;
             g.offsetY = 0f;
             g.scale = 1f;
-            g.hidden = false;
+            g.hidden = g.key.equals("x") || g.key.equals("y");
+            g.action = g.defaultAction;
+            showActionLabel(g);
         }
         applyLayout();
     }
@@ -658,6 +734,7 @@ final class TouchControls {
         final TextView sizeLabel;
         final SeekBar size;
         final Button hide;
+        final Button actionButton;
         final TextView opacityLabel;
         final SeekBar opacitySeek;
         Group selected;
@@ -682,6 +759,26 @@ final class TouchControls {
             sizeLabel = toolbar.findViewById(R.id.editor_size_label);
             size = toolbar.findViewById(R.id.editor_size);
             hide = toolbar.findViewById(R.id.editor_hide);
+            actionButton = toolbar.findViewById(R.id.editor_action);
+            actionButton.setOnClickListener(v -> {
+                if (selected == null || selected.action == null) {
+                    return;
+                }
+                android.widget.PopupMenu menu = new android.widget.PopupMenu(context, v);
+                for (int i = 0; i < ACTION_KEYS.length; i++) {
+                    menu.getMenu().add(0, i, i, ACTION_NAMES[i]);
+                }
+                menu.setOnMenuItemClickListener(item -> {
+                    Group g = selected;
+                    if (g != null) {
+                        g.action = ACTION_KEYS[item.getItemId()];
+                        showActionLabel(g);
+                        updateUi();
+                    }
+                    return true;
+                });
+                menu.show();
+            });
             opacityLabel = toolbar.findViewById(R.id.editor_opacity_label);
             opacitySeek = toolbar.findViewById(R.id.editor_opacity);
 
@@ -749,6 +846,11 @@ final class TouchControls {
             hide.setEnabled(has);
             hide.setAlpha(has ? 1f : 0.4f);
             hide.setText(has && selected.hidden ? R.string.editor_show : R.string.editor_hide);
+            boolean canReassign = has && selected.action != null;
+            actionButton.setEnabled(canReassign);
+            actionButton.setAlpha(canReassign ? 1f : 0.4f);
+            actionButton.setText(context.getString(R.string.editor_action,
+                    canReassign ? ACTION_LABELS[actionIndex(selected.action)] : "\u2013"));
             int scalePercent = has ? Math.round(selected.scale * 100) : 100;
             size.setProgress(scalePercent - Math.round(MIN_SCALE * 100));
             sizeLabel.setText(context.getString(R.string.editor_size, scalePercent));

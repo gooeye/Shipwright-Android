@@ -1,26 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Pause menu opened from the on-screen menu button or the back button. -->
+<!-- Pause menu opened from the on-screen menu button or the back button. Two columns so it fits a
+     landscape phone without scrolling: actions on the left, save states and toggles on the right. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/quick_scrim"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/quick_scrim"
-    android:clickable="true"
-    android:focusable="true">
+    android:clickable="true">
 
     <ScrollView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:fillViewport="false"
         android:scrollbars="none">
 
         <LinearLayout
             android:id="@+id/quick_card"
-            android:layout_width="420dp"
+            android:layout_width="680dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:layout_marginBottom="12dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="10dp"
             android:background="@drawable/dialog_card"
             android:clickable="true"
             android:orientation="vertical"
@@ -44,106 +43,103 @@
                     style="@style/SetupButton"
                     android:layout_width="wrap_content"
                     android:layout_height="44dp"
+                    android:minWidth="120dp"
                     android:text="@string/quick_resume" />
             </LinearLayout>
 
-            <TextView
-                style="@style/QuickSection"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
-                android:text="@string/quick_states" />
-
-            <LinearLayout
-                android:id="@+id/quick_slots"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
                 android:orientation="horizontal">
 
-                <Button
-                    android:id="@+id/quick_save_state"
-                    style="@style/QuickTile"
+                <!-- Left: actions -->
+                <LinearLayout
                     android:layout_width="0dp"
-                    android:layout_height="46dp"
-                    android:layout_marginEnd="8dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="16dp"
                     android:layout_weight="1"
-                    android:text="@string/quick_save_state" />
+                    android:orientation="vertical">
 
-                <Button
-                    android:id="@+id/quick_load_state"
-                    style="@style/QuickTile"
+                    <include
+                        android:id="@+id/quick_edit_controls"
+                        layout="@layout/quick_action_row" />
+
+                    <include
+                        android:id="@+id/quick_settings"
+                        layout="@layout/quick_action_row" />
+
+                    <include
+                        android:id="@+id/quick_toggle_controls"
+                        layout="@layout/quick_action_row" />
+                </LinearLayout>
+
+                <!-- Right: save states and quick toggles -->
+                <LinearLayout
                     android:layout_width="0dp"
-                    android:layout_height="46dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/quick_load_state" />
-            </LinearLayout>
+                    android:orientation="vertical">
 
-            <TextView
-                style="@style/SetupBody"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/quick_states_note"
-                android:textSize="12sp" />
+                    <TextView
+                        style="@style/QuickSection"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/quick_states" />
 
-            <TextView
-                style="@style/QuickSection"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="@string/quick_controls" />
+                    <LinearLayout
+                        android:id="@+id/quick_slots"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal" />
 
-            <LinearLayout
-                android:id="@+id/quick_toggles"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="14dp"
-                android:layout_marginBottom="14dp"
-                android:background="#14FFFFFF" />
+                        <Button
+                            android:id="@+id/quick_save_state"
+                            style="@style/QuickTile"
+                            android:layout_width="0dp"
+                            android:layout_height="44dp"
+                            android:layout_marginEnd="8dp"
+                            android:layout_weight="1"
+                            android:text="@string/quick_save_state" />
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                        <Button
+                            android:id="@+id/quick_load_state"
+                            style="@style/QuickTile"
+                            android:layout_width="0dp"
+                            android:layout_height="44dp"
+                            android:layout_weight="1"
+                            android:text="@string/quick_load_state" />
+                    </LinearLayout>
 
-                <Button
-                    android:id="@+id/quick_settings"
-                    style="@style/QuickTile"
-                    android:layout_width="0dp"
-                    android:layout_height="52dp"
-                    android:layout_marginEnd="8dp"
-                    android:layout_weight="1"
-                    android:text="@string/quick_settings" />
+                    <TextView
+                        style="@style/SetupBody"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/quick_states_note"
+                        android:textSize="11sp" />
 
-                <Button
-                    android:id="@+id/quick_edit_controls"
-                    style="@style/QuickTile"
-                    android:layout_width="0dp"
-                    android:layout_height="52dp"
-                    android:layout_marginEnd="8dp"
-                    android:layout_weight="1"
-                    android:text="@string/quick_edit_controls" />
+                    <TextView
+                        style="@style/QuickSection"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:text="@string/quick_controls" />
 
-                <Button
-                    android:id="@+id/quick_toggle_controls"
-                    style="@style/QuickTile"
-                    android:layout_width="0dp"
-                    android:layout_height="52dp"
-                    android:layout_weight="1"
-                    android:text="@string/quick_hide_controls" />
+                    <LinearLayout
+                        android:id="@+id/quick_toggles"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal" />
+                </LinearLayout>
             </LinearLayout>
         </LinearLayout>
     </ScrollView>

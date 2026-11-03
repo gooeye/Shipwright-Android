@@ -4,6 +4,9 @@
 #ifdef __ANDROID__
 
 #include <jni.h>
+#include <chrono>
+#include <condition_variable>
+#include <SDL2/SDL.h>
 #include <cmath>
 #include <imgui.h>
 #include <algorithm>
@@ -50,6 +53,12 @@ float sFrameY = 0.0f;
 std::atomic<bool> sTouchControlsVisible{ true };
 
 s32 sFramesSinceDrag = 1000; // game frames since the finger last moved on the look area
+
+// Pause menu: the game thread waits at the start of the next frame. Pausing this way (rather than
+// through SDL's background pause) leaves the window and fullscreen state alone.
+std::atomic<bool> sMenuPaused{ false };
+std::mutex sPauseMutex;
+std::condition_variable sPauseCv;
 
 // Where each slot was saved. States only restore safely in the same scene and room.
 // Guarded by sMutex (the pause menu reads it from the UI thread).
@@ -132,6 +141,12 @@ extern "C" {
 
 // Game thread, once per frame before input is read.
 void Mobile_StartFrame() {
+    while (sMenuPaused) {
+        // Keep SDL's event handling alive so going to the background and back still works.
+        SDL_PumpEvents();
+        std::unique_lock<std::mutex> lock(sPauseMutex);
+        sPauseCv.wait_for(lock, std::chrono::milliseconds(50), [] { return !sMenuPaused; });
+    }
     std::vector<StateRequest> states;
     {
         std::lock_guard<std::mutex> lock(sMutex);
@@ -156,7 +171,7 @@ static float sDbgDragTotal = 0.0f;
 static s32 sDbgDragEvents = 0;
 
 void TouchLook_DrawDebug() {
-    if (!CVarGetInteger(CVAR_SETTING("Mobile.CameraDebug"), 0)) {
+    if (!CVarGetInteger(CVAR_SETTING("Mobile.CameraDebug"), 1)) {
         return;
     }
     static s32 checks = 0;
@@ -164,7 +179,9 @@ void TouchLook_DrawDebug() {
     checks = gTouchDbgManualChecks;
     gTouchDbgManualChecks = 0;
     lastFrameChecks = checks;
-    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * 0.5f, viewport->WorkPos.y + viewport->WorkSize.y * 0.22f),
+                            ImGuiCond_Always, ImVec2(0.5f, 0.0f));
     ImGui::SetNextWindowBgAlpha(0.6f);
     ImGui::Begin("Camera debug", nullptr,
                  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoInputs |
@@ -205,6 +222,14 @@ JNIEXPORT void JNICALL Java_com_dishii_soh_MainActivity_addLookDelta(JNIEnv* env
     sPendingY += dyDp;
     sDbgDragEvents++;
     sDbgDragTotal += std::fabs(dxDp) + std::fabs(dyDp);
+}
+
+JNIEXPORT void JNICALL Java_com_dishii_soh_MainActivity_nativeSetPaused(JNIEnv* env, jobject obj, jboolean paused) {
+    {
+        std::lock_guard<std::mutex> lock(sPauseMutex);
+        sMenuPaused = paused;
+    }
+    sPauseCv.notify_all();
 }
 
 JNIEXPORT void JNICALL Java_com_dishii_soh_MainActivity_nativeSaveState(JNIEnv* env, jobject obj, jint slot,
