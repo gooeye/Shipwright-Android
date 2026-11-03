@@ -31,25 +31,33 @@ jobs:
         with:
           submodules: recursive
 
-      # Optional: sign with a fixed key so each build installs over the last one. Add the
-      # repository secrets SOH_KEYSTORE_BASE64 (base64 of the .jks), SOH_KEYSTORE_PASSWORD,
-      # SOH_KEY_ALIAS and SOH_KEY_PASSWORD. Without them the APK is signed with a throwaway key.
+      # Optional: sign with a fixed key so each build installs over the last one. Secrets:
+      # SIGNING_KEY (or SOH_KEYSTORE_BASE64): the .jks file, base64-encoded
+      # SOH_KEYSTORE_PASSWORD: its password
+      # SOH_KEY_ALIAS / SOH_KEY_PASSWORD: optional, default to "soh" / the keystore password
+      # Without the key and password the APK is signed with a throwaway key.
       - name: Load signing key
         env:
-          SOH_KEYSTORE_BASE64: ${{ secrets.SOH_KEYSTORE_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.SOH_KEYSTORE_BASE64 || secrets.SIGNING_KEY }}
+          KEYSTORE_PASSWORD: ${{ secrets.SOH_KEYSTORE_PASSWORD }}
         run: |
-          if [ -n "$SOH_KEYSTORE_BASE64" ]; then
-            echo "$SOH_KEYSTORE_BASE64" | base64 -d > Android/signing.jks
-            echo "SOH_KEYSTORE_FILE=/workspace/Android/signing.jks" >> "$GITHUB_ENV"
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::No signing key secret; using a throwaway debug key."
+          elif [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::warning::Signing key found but SOH_KEYSTORE_PASSWORD is not set; using a throwaway debug key."
+          elif ! printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > Android/signing.jks 2>/dev/null; then
+            echo "::warning::Signing key secret isn't valid base64; using a throwaway debug key."
+            rm -f Android/signing.jks
           else
-            echo "No signing secrets set; using a throwaway debug key."
+            echo "SOH_KEYSTORE_FILE=/workspace/Android/signing.jks" >> "$GITHUB_ENV"
+            echo "Signing with the fixed release key."
           fi
 
       - name: Setup and build the project
         env:
           SOH_KEYSTORE_PASSWORD: ${{ secrets.SOH_KEYSTORE_PASSWORD }}
-          SOH_KEY_ALIAS: ${{ secrets.SOH_KEY_ALIAS }}
-          SOH_KEY_PASSWORD: ${{ secrets.SOH_KEY_PASSWORD }}
+          SOH_KEY_ALIAS: ${{ secrets.SOH_KEY_ALIAS || 'soh' }}
+          SOH_KEY_PASSWORD: ${{ secrets.SOH_KEY_PASSWORD || secrets.SOH_KEYSTORE_PASSWORD }}
         run: |
           cd docker
           make setup
