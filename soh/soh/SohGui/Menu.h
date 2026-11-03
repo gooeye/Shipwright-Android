@@ -53,7 +53,11 @@ class Menu : public GuiWindow {
     };
 
   private:
+#ifdef __ANDROID__
+    bool allowPopout = false; // small screen port
+#else
     bool allowPopout = true; // PortNote: should be set to false on small screen ports
+#endif
     bool popped;
     ImVec2 poppedSize;
     ImVec2 poppedPos;

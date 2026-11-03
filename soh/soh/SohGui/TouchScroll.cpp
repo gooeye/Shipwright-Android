@@ -108,6 +108,10 @@ void Update() {
     }
 }
 
+bool IsHolding() {
+    return sGesture == Gesture::Undecided;
+}
+
 bool IsGestureUndecided() {
     return sGesture == Gesture::Undecided || sGesture == Gesture::Scrolling;
 }

@@ -138,16 +138,21 @@ void SohMenu::AddMenuSettings() {
         })
         .Options(CheckboxOptions().Tooltip(
             "Displays the Search menu as a sidebar entry in Settings instead of in the header."));
+#ifndef __ANDROID__ // not applicable on Android
     AddWidget(path, "Search Input Autofocus", WIDGET_CVAR_CHECKBOX)
         .CVar(CVAR_SETTING("Menu.SearchAutofocus"))
         .RaceDisable(false)
         .Options(CheckboxOptions().Tooltip(
             "Search input box gets autofocus when visible. Does not affect using other widgets."));
+#endif
+#ifndef __ANDROID__ // not applicable on Android
     AddWidget(path, "Alt Assets Tab hotkey", WIDGET_CVAR_CHECKBOX)
         .CVar(CVAR_SETTING("Mods.AlternateAssetsHotkey"))
         .RaceDisable(false)
         .Options(
             CheckboxOptions().Tooltip("Allows pressing the Tab key to toggle alternate assets").DefaultValue(true));
+#endif
+#ifndef __ANDROID__ // not applicable on Android
     AddWidget(path, "Open App Files Folder", WIDGET_BUTTON)
         .RaceDisable(false)
         .Callback([](WidgetInfo& info) {
@@ -155,6 +160,9 @@ void SohMenu::AddMenuSettings() {
             SDL_OpenURL(std::string("file:///" + std::filesystem::absolute(filesPath).string()).c_str());
         })
         .Options(ButtonOptions().Tooltip("Opens the folder that contains the save and mods folders, etc."));
+#else
+    AddWidget(path, "Saves, mods and game data are in the SOH folder on your phone's storage.", WIDGET_TEXT);
+#endif
 
     AddWidget(path, "Boot", WIDGET_SEPARATOR_TEXT);
     AddWidget(path, "Boot Sequence", WIDGET_CVAR_COMBOBOX)
@@ -264,7 +272,9 @@ void SohMenu::AddMenuSettings() {
         .Callback([](WidgetInfo& info) {
             Audio_SetGameVolume(SEQ_PLAYER_SFX, ((float)CVarGetInteger(CVAR_SETTING("Volume.SFX"), 100) / 100.0f));
         });
+#ifndef __ANDROID__ // not applicable on Android
     AddWidget(path, "Audio API (Needs reload)", WIDGET_AUDIO_BACKEND).RaceDisable(false);
+#endif
 
     // Graphics Settings
     static int32_t maxFps = 360;
@@ -274,10 +284,12 @@ void SohMenu::AddMenuSettings() {
     path.sidebarName = "Graphics";
     AddSidebarEntry("Settings", "Graphics", 3);
     AddWidget(path, "Graphics Options", WIDGET_SEPARATOR_TEXT);
+#ifndef __ANDROID__ // not applicable on Android
     AddWidget(path, "Toggle Fullscreen", WIDGET_BUTTON)
         .RaceDisable(false)
         .Callback([](WidgetInfo& info) { Ship::Context::GetInstance()->GetWindow()->ToggleFullscreen(); })
         .Options(ButtonOptions().Tooltip("Toggles Fullscreen On/Off."));
+#endif
     AddWidget(path, "Internal Resolution", WIDGET_CVAR_SLIDER_FLOAT)
         .CVar(CVAR_INTERNAL_RESOLUTION)
         .RaceDisable(false)
@@ -341,7 +353,9 @@ void SohMenu::AddMenuSettings() {
         .CVar(CVAR_SETTING("MatchRefreshRate"))
         .RaceDisable(false)
         .Options(CheckboxOptions().Tooltip("Matches interpolation value to the refresh rate of your display."));
+#ifndef __ANDROID__ // not applicable on Android
     AddWidget(path, "Renderer API (Needs reload)", WIDGET_VIDEO_BACKEND).RaceDisable(false);
+#endif
     AddWidget(path, "Enable Vsync", WIDGET_CVAR_CHECKBOX)
         .CVar(CVAR_VSYNC_ENABLED)
         .RaceDisable(false)
@@ -349,6 +363,7 @@ void SohMenu::AddMenuSettings() {
         .Options(CheckboxOptions()
                      .Tooltip("Removes tearing, but clamps your max FPS to your displays refresh rate.")
                      .DefaultValue(true));
+#ifndef __ANDROID__ // not applicable on Android
     AddWidget(path, "Windowed Fullscreen", WIDGET_CVAR_CHECKBOX)
         .CVar(CVAR_SDL_WINDOWED_FULLSCREEN)
         .RaceDisable(false)
@@ -356,6 +371,8 @@ void SohMenu::AddMenuSettings() {
             info.isHidden = mSohMenu->disabledMap.at(DISABLE_FOR_NO_WINDOWED_FULLSCREEN).active;
         })
         .Options(CheckboxOptions().Tooltip("Enables Windowed Fullscreen Mode."));
+#endif
+#ifndef __ANDROID__ // not applicable on Android
     AddWidget(path, "Allow multi-windows", WIDGET_CVAR_CHECKBOX)
         .CVar(CVAR_ENABLE_MULTI_VIEWPORTS)
         .RaceDisable(false)
@@ -363,6 +380,7 @@ void SohMenu::AddMenuSettings() {
             [](WidgetInfo& info) { info.isHidden = mSohMenu->disabledMap.at(DISABLE_FOR_NO_MULTI_VIEWPORT).active; })
         .Options(CheckboxOptions().Tooltip(
             "Allows multiple windows to be opened at once. Requires a reload to take effect."));
+#endif
     AddWidget(path, "Texture Filter (Needs reload)", WIDGET_CVAR_COMBOBOX)
         .CVar(CVAR_TEXTURE_FILTER)
         .RaceDisable(false)

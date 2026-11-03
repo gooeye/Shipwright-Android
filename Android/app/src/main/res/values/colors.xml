@@ -20,6 +20,7 @@
     <color name="setup_step_idle">#2A3442</color>
 
     <!-- Touch controls -->
+    <color name="hint_bg">#E6171F2A</color>
     <color name="pad_fill">#38101722</color>
     <color name="pad_stroke">#59FFFFFF</color>
     <color name="pad_label">#D9FFFFFF</color>

@@ -19,6 +19,7 @@ import android.provider.OpenableColumns;
 import android.provider.Settings;
 import android.util.Log;
 import android.util.SparseArray;
+import android.hardware.input.InputManager;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -313,7 +314,10 @@ public class MainActivity extends SDLActivity {
                 deleteImportedRom();
                 return false;
             case PHASE_READY:
-                gameReady = true;
+                if (!gameReady) {
+                    gameReady = true;
+                    touchControls.showFirstRunHint();
+                }
                 if (setupOverlay.isVisible()) {
                     setupOverlay.setAllDone();
                     setupOverlay.setDone(R.string.setup_ready);
@@ -701,6 +705,10 @@ public class MainActivity extends SDLActivity {
             }
         });
         addPauseMenuToggles();
+
+        InputManager inputManager = (InputManager) getSystemService(Context.INPUT_SERVICE);
+        inputManager.registerInputDeviceListener(gamepadListener, handler);
+        updateGamepadState(false);
     }
 
     private void addPauseMenuToggles() {
@@ -711,6 +719,67 @@ public class MainActivity extends SDLActivity {
                 () -> nativeGetSetting(SETTING_MOVE_FIRST_PERSON, 1) != 0,
                 on -> nativeSetSetting(SETTING_MOVE_FIRST_PERSON, on ? 1 : 0));
         quickMenu.addToggle(R.string.toggle_vibration, touchControls::isVibrationOn, touchControls::setVibrationOn);
+    }
+
+    // Coming back to the app lands on the pause menu rather than straight into the action.
+    @Override
+    protected void onPause() {
+        boolean showMenu = gameReady && !gameMenuOpen && touchControls != null && !touchControls.isEditing()
+                && !quickMenu.isShowing();
+        super.onPause();
+        if (showMenu) {
+            touchControls.releaseAll();
+            pausedByMenu = true; // keeps SDL from resuming the game in onResume
+            quickMenu.show();
+        }
+    }
+
+    // Physical controllers: hide the touch controls while one is connected.
+    private final InputManager.InputDeviceListener gamepadListener = new InputManager.InputDeviceListener() {
+        @Override
+        public void onInputDeviceAdded(int deviceId) {
+            updateGamepadState(true);
+        }
+
+        @Override
+        public void onInputDeviceRemoved(int deviceId) {
+            updateGamepadState(false);
+        }
+
+        @Override
+        public void onInputDeviceChanged(int deviceId) {
+            updateGamepadState(false);
+        }
+    };
+    private boolean gamepadConnected;
+
+    private void updateGamepadState(boolean announce) {
+        boolean connected = false;
+        for (int id : InputDevice.getDeviceIds()) {
+            InputDevice device = InputDevice.getDevice(id);
+            if (device == null || device.isVirtual()) {
+                continue;
+            }
+            int sources = device.getSources();
+            boolean pad = (sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
+                    || (sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK;
+            // Some phones report sensors (e.g. fingerprint readers) as gamepads; a real one has face buttons.
+            if (pad && device.hasKeys(KeyEvent.KEYCODE_BUTTON_A)[0]) {
+                connected = true;
+                break;
+            }
+        }
+        if (connected == gamepadConnected) {
+            return;
+        }
+        gamepadConnected = connected;
+        if (touchControls != null) {
+            boolean wasVisible = !touchControls.areControlsHidden();
+            touchControls.setHiddenForGamepad(connected);
+            if (connected && announce && wasVisible) {
+                Toast.makeText(this, R.string.gamepad_connected, Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     private void openPauseMenu() {
@@ -769,6 +838,7 @@ public class MainActivity extends SDLActivity {
     @Override
     protected void onDestroy() {
         pollingNative = false;
+        ((InputManager) getSystemService(Context.INPUT_SERVICE)).unregisterInputDeviceListener(gamepadListener);
         handler.removeCallbacksAndMessages(null);
         worker.shutdown();
         super.onDestroy();

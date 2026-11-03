@@ -12,6 +12,9 @@ void Update();
 // scroll. Widgets that would change a value on touch-down should hold off until then.
 bool IsGestureUndecided();
 
+// True while a finger rests on the screen without having moved yet (a possible long-press).
+bool IsHolding();
+
 } // namespace TouchScroll
 
 #endif // TOUCH_SCROLL_H

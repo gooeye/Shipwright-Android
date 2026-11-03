@@ -23,6 +23,8 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
+import androidx.constraintlayout.widget.ConstraintLayout;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -83,6 +85,7 @@ final class TouchControls {
     private final List<Integer> boundButtons = new ArrayList<>();
     private float opacity;
     private boolean controlsHidden; // the eye button
+    private boolean hiddenForGamepad; // hidden automatically because a controller is connected
     private boolean suspended; // hidden while the game's own menu is open
     private Editor editor;
 
@@ -200,6 +203,23 @@ final class TouchControls {
     }
 
     void setControlsHidden(boolean hidden) {
+        hiddenForGamepad = false;
+        applyControlsHidden(hidden);
+        prefs.edit().putBoolean("controlsVisible", hidden).apply();
+    }
+
+    /** Hides the controls while a physical controller is connected, without changing the saved choice. */
+    void setHiddenForGamepad(boolean connected) {
+        if (connected && !controlsHidden) {
+            applyControlsHidden(true);
+            hiddenForGamepad = true;
+        } else if (!connected && hiddenForGamepad) {
+            hiddenForGamepad = false;
+            applyControlsHidden(false);
+        }
+    }
+
+    private void applyControlsHidden(boolean hidden) {
         controlsHidden = hidden;
         input.setControlsVisible(!hidden);
         if (hidden) {
@@ -215,7 +235,37 @@ final class TouchControls {
             buttonGroup.animate().alpha(1f).setDuration(150).withEndAction(null).start();
         }
         toggleButton.animate().alpha(hidden ? 0.45f * opacity : opacity).setDuration(150).start();
-        prefs.edit().putBoolean("controlsVisible", hidden).apply();
+    }
+
+    /** A short tip under the menu button for the first few sessions. */
+    void showFirstRunHint() {
+        int shown = prefs.getInt("hintShown", 0);
+        if (shown >= 3) {
+            return;
+        }
+        prefs.edit().putInt("hintShown", shown + 1).apply();
+        TextView hint = new TextView(context);
+        hint.setText(R.string.hint_first_run);
+        hint.setTextColor(context.getColor(R.color.setup_text_primary));
+        hint.setTextSize(13);
+        hint.setBackgroundResource(R.drawable.hint_bubble);
+        int padH = Math.round(14 * density);
+        int padV = Math.round(9 * density);
+        hint.setPadding(padH, padV, padH, padV);
+        hint.setMaxWidth(Math.round(420 * density));
+        ConstraintLayout.LayoutParams lp = new ConstraintLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topToBottom = R.id.buttonMenu;
+        lp.startToStart = ConstraintLayout.LayoutParams.PARENT_ID;
+        lp.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID;
+        lp.topMargin = Math.round(8 * density);
+        root.addView(hint, lp);
+        hint.setAlpha(0f);
+        hint.animate().alpha(1f).setDuration(250).start();
+        Runnable dismiss = () -> hint.animate().alpha(0f).setDuration(250)
+                .withEndAction(() -> root.removeView(hint)).start();
+        hint.setOnClickListener(v -> dismiss.run());
+        hint.postDelayed(dismiss, 8000);
     }
 
     /** Lets go of every button and centers the sticks, e.g. before pausing. */
@@ -426,7 +476,8 @@ final class TouchControls {
             g.offsetX = prefs.getFloat(k + "x", 0f);
             g.offsetY = prefs.getFloat(k + "y", 0f);
             g.scale = clamp(prefs.getFloat(k + "scale", 1f), MIN_SCALE, MAX_SCALE);
-            g.hidden = prefs.getBoolean(k + "hidden", false);
+            // X and Y aren't mapped to anything in the game by default, so they start hidden.
+            g.hidden = prefs.getBoolean(k + "hidden", g.key.equals("x") || g.key.equals("y"));
         }
     }
 

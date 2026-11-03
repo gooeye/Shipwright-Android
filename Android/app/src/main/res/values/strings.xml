@@ -50,6 +50,8 @@
     <string name="quick_hide_controls">Hide controls</string>
     <string name="quick_show_controls">Show controls</string>
 
+    <string name="hint_first_run">Tap ☰ (or Back) to pause, save states and edit the controls. Drag the screen to look around.</string>
+    <string name="gamepad_connected">Controller connected: touch controls hidden</string>
     <string name="editor_hint">Drag a control to move it. Pinch or use the slider to resize.</string>
     <string name="editor_size">Size %1$d%%</string>
     <string name="editor_opacity">Opacity %1$d%%</string>
