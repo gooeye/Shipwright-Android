@@ -4,6 +4,7 @@
 #ifdef __ANDROID__
 
 #include <jni.h>
+#include <string>
 #include <chrono>
 #include <condition_variable>
 #include <SDL2/SDL.h>
@@ -166,6 +167,7 @@ void Mobile_StartFrame() {
 extern const char* gTouchDbgCameraFunc;
 extern s32 gTouchDbgManualChecks;
 extern s32 gTouchDbgManualCamera;
+extern f32 gTouchDbgCamYaw;
 s32 Camera_FreeLookEnabled(void);
 static float sDbgDragTotal = 0.0f;
 static s32 sDbgDragEvents = 0;
@@ -194,7 +196,32 @@ void TouchLook_DrawDebug() {
                 CVarGetInteger(CVAR_SETTING("Mobile.CameraFollowsMovement"), 1));
     ImGui::Text("Free camera allowed %d, checks/frame %d, manual camera %d", Camera_FreeLookEnabled(), lastFrameChecks,
                 gTouchDbgManualCamera);
-    ImGui::Text("Camera function: %s", gTouchDbgCameraFunc != nullptr ? gTouchDbgCameraFunc : "?");
+    ImGui::Text("Camera function: %s, free camera yaw %.0f deg", gTouchDbgCameraFunc != nullptr ? gTouchDbgCameraFunc : "?",
+                gTouchDbgCamYaw * 360.0f / 65536.0f);
+    // What happened during the most recent drag, so one screenshot afterwards is enough.
+    static s32 lastDragChecks = -1;
+    static s32 lastDragManual = -1;
+    static std::string lastDragFunc;
+    static float yawAtDragStart = 0.0f;
+    static float lastDragYawChange = 0.0f;
+    static bool inDrag = false;
+    bool dragging = sFrameX != 0.0f || sFrameY != 0.0f;
+    if (dragging && !inDrag) {
+        yawAtDragStart = gTouchDbgCamYaw;
+    }
+    if (dragging) {
+        lastDragChecks = lastFrameChecks;
+        lastDragManual = gTouchDbgManualCamera;
+        lastDragFunc = gTouchDbgCameraFunc != nullptr ? gTouchDbgCameraFunc : "?";
+        lastDragYawChange = (gTouchDbgCamYaw - yawAtDragStart) * 360.0f / 65536.0f;
+    }
+    if (sFramesSinceDrag < 1000) {
+        inDrag = sFramesSinceDrag < 3;
+    }
+    ImGui::Separator();
+    ImGui::Text("Last drag: checks/frame %d, manual camera %d, function %s, yaw change %.0f deg", lastDragChecks,
+                lastDragManual, lastDragFunc.c_str(), lastDragYawChange);
+    ImGui::Text("Frames since last drag: %d", sFramesSinceDrag);
     ImGui::End();
 }
 
@@ -230,6 +257,34 @@ JNIEXPORT void JNICALL Java_com_dishii_soh_MainActivity_nativeSetPaused(JNIEnv* 
         sMenuPaused = paused;
     }
     sPauseCv.notify_all();
+}
+
+// Called from the settings menu (game thread).
+void Mobile_RequestState(unsigned int slot, bool load) {
+    std::lock_guard<std::mutex> lock(sMutex);
+    sPendingStates.push_back({ slot, load });
+}
+
+static void CallActivity(const char* method) {
+    JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
+    jobject activity = (jobject)SDL_AndroidGetActivity();
+    jclass cls = env->GetObjectClass(activity);
+    jmethodID id = env->GetMethodID(cls, method, "()V");
+    if (id != nullptr) {
+        env->CallVoidMethod(activity, id);
+    } else {
+        env->ExceptionClear();
+    }
+    env->DeleteLocalRef(cls);
+    env->DeleteLocalRef(activity);
+}
+
+void Mobile_OpenControlsEditor() {
+    CallActivity("openControlsEditorFromGame");
+}
+
+void Mobile_ToggleTouchControls() {
+    CallActivity("toggleTouchControlsFromGame");
 }
 
 JNIEXPORT void JNICALL Java_com_dishii_soh_MainActivity_nativeSaveState(JNIEnv* env, jobject obj, jint slot,

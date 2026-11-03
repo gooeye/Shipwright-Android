@@ -597,6 +597,7 @@ public class MainActivity extends SDLActivity {
     // Game settings (CVars) shown as toggles in the pause menu.
     private static final String SETTING_CAMERA_FOLLOWS = "gSettings.Mobile.CameraFollowsMovement";
     private static final String SETTING_MOVE_FIRST_PERSON = "gSettings.MoveInFirstPerson";
+    private static final String SETTING_VIBRATION = "gSettings.Mobile.Vibration";
 
     private TouchControls touchControls;
     private QuickMenu quickMenu;
@@ -606,10 +607,35 @@ public class MainActivity extends SDLActivity {
 
     // Called by native code (game thread) when the game's settings menu closes / opens.
     void EnableTouchArea() {
+        // Read on the game thread, where settings are safe to access.
+        boolean vibration = nativeGetSetting(SETTING_VIBRATION, 1) != 0;
         runOnUiThread(() -> {
             gameMenuOpen = false;
             if (touchControls != null) {
+                touchControls.setVibrationOn(vibration);
                 touchControls.setSuspended(false);
+            }
+        });
+    }
+
+    // Called by the game's settings menu (game thread).
+    void openControlsEditorFromGame() {
+        runOnUiThread(() -> {
+            if (touchControls == null || touchControls.isEditing()) {
+                return;
+            }
+            gameMenuOpen = false;
+            touchControls.setSuspended(false);
+            touchControls.releaseAll();
+            pauseGame();
+            touchControls.startEditing(this::resumeFromMenu);
+        });
+    }
+
+    void toggleTouchControlsFromGame() {
+        runOnUiThread(() -> {
+            if (touchControls != null) {
+                touchControls.setControlsHidden(!touchControls.areControlsHidden());
             }
         });
     }
@@ -719,7 +745,10 @@ public class MainActivity extends SDLActivity {
         quickMenu.addToggle(R.string.toggle_move_first_person,
                 () -> nativeGetSetting(SETTING_MOVE_FIRST_PERSON, 1) != 0,
                 on -> nativeSetSetting(SETTING_MOVE_FIRST_PERSON, on ? 1 : 0));
-        quickMenu.addToggle(R.string.toggle_vibration, touchControls::isVibrationOn, touchControls::setVibrationOn);
+        quickMenu.addToggle(R.string.toggle_vibration, touchControls::isVibrationOn, on -> {
+            touchControls.setVibrationOn(on);
+            nativeSetSetting(SETTING_VIBRATION, on ? 1 : 0);
+        });
     }
 
     // Coming back to the app lands on the pause menu rather than straight into the action.

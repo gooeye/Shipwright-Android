@@ -222,12 +222,15 @@ final class TouchControls {
         root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyLayout());
     }
 
+    // Mirrors the game setting gSettings.Mobile.Vibration (MainActivity keeps it in sync).
+    private boolean vibration = true;
+
     boolean isVibrationOn() {
-        return prefs.getBoolean("haptics", true);
+        return vibration;
     }
 
     void setVibrationOn(boolean on) {
-        prefs.edit().putBoolean("haptics", on).apply();
+        vibration = on;
     }
 
     private void haptic(View v, int type) {

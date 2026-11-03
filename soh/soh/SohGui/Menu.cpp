@@ -600,6 +600,9 @@ void Menu::DrawElement() {
     UIWidgets::PushStyleVarScaled(ImGuiStyleVar_FramePadding, ImVec2(10.0f, 8.0f));
     const char* headerCvar = CVAR_SETTING("Menu.ActiveHeader");
     std::string headerIndex = CVarGetString(headerCvar, "Settings");
+    if (!menuEntries.contains(headerIndex)) {
+        headerIndex = menuOrder.at(0); // the saved tab may be a menu that's hidden on this platform
+    }
     ImVec2 pos = window->DC.CursorPos;
     float centerX = pos.x + windowWidth / 2 - (style.ItemSpacing.x * (menuEntries.size() + 1));
     std::vector<ImVec2> headerSizes;

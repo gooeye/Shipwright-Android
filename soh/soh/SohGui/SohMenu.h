@@ -200,6 +200,9 @@ class SohMenu : public Ship::Menu {
     void Draw() override;
 
     void AddSidebarEntry(std::string sectionName, std::string sidbarName, uint32_t columnCount);
+#ifdef __ANDROID__
+    void AddMenuTouch();
+#endif
     WidgetInfo& AddWidget(WidgetPath& pathInfo, std::string widgetName, WidgetType widgetType);
     void AddMenuSettings();
     void AddMenuEnhancements();

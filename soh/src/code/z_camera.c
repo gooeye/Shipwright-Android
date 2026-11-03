@@ -56,6 +56,7 @@ s32 TouchLook_FramesSinceDrag(void);
 const char* gTouchDbgCameraFunc = "";
 s32 gTouchDbgManualChecks = 0;
 s32 gTouchDbgManualCamera = 0;
+f32 gTouchDbgCamYaw = 0.0f;
 #endif
 
 /*===============================================================*/
@@ -1479,6 +1480,7 @@ s32 SetCameraManual(Camera* camera) {
         }
     }
     gTouchDbgManualCamera = camera->play->manualCamera;
+    gTouchDbgCamYaw = camera->play->camX;
 #endif
 
     if (camera->play->manualCamera) {

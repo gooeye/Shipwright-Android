@@ -87,9 +87,124 @@ void SohMenu::UpdateLanguageMap(std::unordered_map<int32_t, const char*>& langua
     }
 }
 
+#ifdef __ANDROID__
+extern "C" void Mobile_RequestState(unsigned int slot, bool load);
+extern "C" void Mobile_OpenControlsEditor();
+extern "C" void Mobile_ToggleTouchControls();
+
+static std::unordered_map<int32_t, const char*> stateSlots = { { 1, "Slot 1" }, { 2, "Slot 2" }, { 3, "Slot 3" } };
+
+// Everything for playing on a phone in one place, and the first page of the menu: the touch
+// controls, save states and how the camera follows your finger. Mirrors the pause menu.
+void SohMenu::AddMenuTouch() {
+    AddSidebarEntry("Settings", "Touch & Camera", 2);
+    WidgetPath path = { "Settings", "Touch & Camera", SECTION_COLUMN_1 };
+
+    AddWidget(path, "On-screen controls", WIDGET_SEPARATOR_TEXT);
+    AddWidget(path, "Customize Touch Controls", WIDGET_BUTTON)
+        .RaceDisable(false)
+        .Callback([](WidgetInfo& info) {
+            auto menu = Ship::Context::GetInstance()->GetWindow()->GetGui()->GetMenu();
+            if (menu->IsVisible()) {
+                menu->ToggleVisibility();
+            }
+            Mobile_OpenControlsEditor();
+        })
+        .Options(ButtonOptions().Tooltip("Move, resize, hide or reassign the on-screen buttons."));
+    AddWidget(path, "Show / Hide Touch Controls", WIDGET_BUTTON)
+        .RaceDisable(false)
+        .Callback([](WidgetInfo& info) { Mobile_ToggleTouchControls(); })
+        .Options(ButtonOptions().Tooltip("Hide the on-screen buttons, e.g. when playing with a controller."));
+    AddWidget(path, "Vibration", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_SETTING("Mobile.Vibration"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip("A light tick when you press an on-screen button."));
+
+    AddWidget(path, "Save states", WIDGET_SEPARATOR_TEXT);
+    AddWidget(path, "Slot", WIDGET_CVAR_COMBOBOX)
+        .CVar(CVAR_SETTING("Mobile.StateSlot"))
+        .RaceDisable(false)
+        .Options(ComboboxOptions()
+                     .ComboMap(stateSlots)
+                     .DefaultIndex(1)
+                     .ComponentAlignment(ComponentAlignments::Right)
+                     .LabelPosition(LabelPositions::Far));
+    AddWidget(path, "Save State", WIDGET_BUTTON)
+        .RaceDisable(false)
+        .Callback([](WidgetInfo& info) { Mobile_RequestState(CVarGetInteger(CVAR_SETTING("Mobile.StateSlot"), 1), false); })
+        .Options(ButtonOptions().Tooltip("Snapshot this exact moment into the slot above."));
+    AddWidget(path, "Load State", WIDGET_BUTTON)
+        .RaceDisable(false)
+        .Callback([](WidgetInfo& info) { Mobile_RequestState(CVarGetInteger(CVAR_SETTING("Mobile.StateSlot"), 1), true); })
+        .Options(ButtonOptions().Tooltip("Go back to the snapshot in the slot above."));
+    AddWidget(path, "States last until the app closes and only load in the room they were saved in.", WIDGET_TEXT)
+        .Options(TextOptions().Color(Colors::Gray));
+
+    path.column = SECTION_COLUMN_2;
+    AddWidget(path, "Camera", WIDGET_SEPARATOR_TEXT);
+    AddWidget(path, "Drag Screen to Look", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_SETTING("Mobile.DragToLook"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip(
+            "Drag anywhere on the screen that isn't a button to turn the camera."));
+    AddWidget(path, "Camera Follows Movement", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_SETTING("Mobile.CameraFollowsMovement"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip(
+            "On: after you look around, walking brings back the camera that follows Link.\n"
+            "Off: the camera keeps its angle while you walk."));
+    AddWidget(path, "Look Speed: %.0f %%", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar(CVAR_SETTING("FreeLook.CameraSensitivity.X"))
+        .RaceDisable(false)
+        .Callback([](WidgetInfo& info) {
+            CVarSetFloat(CVAR_SETTING("FreeLook.CameraSensitivity.Y"),
+                         CVarGetFloat(CVAR_SETTING("FreeLook.CameraSensitivity.X"), 1.0f));
+        })
+        .Options(FloatSliderOptions().IsPercentage().Min(0.1f).Max(3.0f).DefaultValue(1.0f).ShowButtons(true));
+    AddWidget(path, "Invert Up/Down Look", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_SETTING("FreeLook.InvertYAxis"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().DefaultValue(true));
+    AddWidget(path, "Aiming (first person)", WIDGET_SEPARATOR_TEXT);
+    AddWidget(path, "Walk While Aiming", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_SETTING("MoveInFirstPerson"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip(
+            "In first person the stick walks and dragging the screen aims."));
+    AddWidget(path, "Aim Speed: %.0f %%", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar(CVAR_SETTING("FirstPersonCameraSensitivity.X"))
+        .RaceDisable(false)
+        .Callback([](WidgetInfo& info) {
+            CVarSetFloat(CVAR_SETTING("FirstPersonCameraSensitivity.Y"),
+                         CVarGetFloat(CVAR_SETTING("FirstPersonCameraSensitivity.X"), 1.0f));
+        })
+        .Options(FloatSliderOptions().IsPercentage().Min(0.1f).Max(3.0f).DefaultValue(1.0f).ShowButtons(true));
+    AddWidget(path, "Troubleshooting", WIDGET_SEPARATOR_TEXT);
+    AddWidget(path, "Show Camera Debug Info", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_SETTING("Mobile.CameraDebug"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().DefaultValue(true));
+    AddWidget(path, "Show Developer Menus (after restart)", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_SETTING("Mobile.ShowDevMenus"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().Tooltip("Adds the Dev Tools menu, for debugging and testing."));
+
+    // Open on this page the first time.
+    if (!CVarGetInteger(CVAR_SETTING("Mobile.TouchPageIntroduced"), 0)) {
+        CVarSetInteger(CVAR_SETTING("Mobile.TouchPageIntroduced"), 1);
+        CVarSetString(CVAR_SETTING("Menu.SettingsSidebarSection"), "Touch & Camera");
+        CVarSetString(CVAR_SETTING("Menu.ActiveHeader"), "Settings");
+        CVarSave();
+    }
+}
+#endif
+
 void SohMenu::AddMenuSettings() {
     // Add Settings Menu
     AddMenuEntry("Settings", CVAR_SETTING("Menu.SettingsSidebarSection"));
+#ifdef __ANDROID__
+    AddMenuTouch();
+#endif
     AddSidebarEntry("Settings", "General", 3);
     WidgetPath path = { "Settings", "General", SECTION_COLUMN_1 };
 

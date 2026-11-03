@@ -42,8 +42,8 @@
     <string name="quick_controls">Controls</string>
     <string name="quick_on">On</string>
     <string name="quick_off">Off</string>
-    <string name="toggle_camera_follow">Camera follows</string>
-    <string name="toggle_move_first_person">Walk in 1st person</string>
+    <string name="toggle_camera_follow">Follow cam</string>
+    <string name="toggle_move_first_person">Walk &amp; aim</string>
     <string name="toggle_vibration">Vibration</string>
     <string name="quick_settings">Game settings</string>
     <string name="quick_settings_sub">Graphics, sound, enhancements, controller mapping</string>
