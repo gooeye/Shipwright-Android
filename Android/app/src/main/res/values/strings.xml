@@ -1,3 +1,32 @@
 <resources>
     <string name="app_name">Ship of Harkinian</string>
+
+    <string name="setup_subtitle">First-time setup</string>
+    <string name="setup_step_prepare">Prepare</string>
+    <string name="setup_step_rom">Your ROM</string>
+    <string name="setup_step_build">Build game data</string>
+
+    <string name="setup_permission_title">Storage access needed</string>
+    <string name="setup_permission_body">Saves, mods and game data live in the SOH folder on your phone\'s storage. Tap below, then turn on \"Allow access to manage all files\".</string>
+    <string name="setup_permission_action">Open settings</string>
+
+    <string name="setup_preparing">Unpacking extractor files</string>
+    <string name="setup_preparing_hint">This only happens once. Keep the app open until it finishes.</string>
+    <string name="setup_finishing">Finishing up</string>
+    <string name="setup_starting">Starting up</string>
+
+    <string name="setup_need_rom">Choose your Ocarina of Time ROM</string>
+    <string name="setup_need_rom_hint">Pick a .z64, .n64 or .v64 file you dumped yourself. Not sure if yours is supported? Check it at ship.equipment.</string>
+    <string name="setup_importing_rom">Importing your ROM</string>
+    <string name="setup_reading_rom">Reading your ROM</string>
+    <string name="setup_extracting">Building game data</string>
+    <string name="setup_extracting_hint">This takes a few minutes on a phone. Keep the app open and the screen on.</string>
+    <string name="setup_packing">Packing game archive</string>
+    <string name="setup_saving">Saving to storage</string>
+    <string name="setup_extract_done">Game data ready</string>
+    <string name="setup_ready">All set</string>
+
+    <string name="setup_error_title">Setup didn\'t finish</string>
+    <string name="setup_retry">Try again</string>
+    <string name="setup_rom_import_failed">Couldn\'t read that file. Try picking it again.</string>
 </resources>

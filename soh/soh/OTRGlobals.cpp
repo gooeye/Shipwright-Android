@@ -1038,8 +1038,9 @@ void DetectOTRVersion(std::string fileName, bool isMQ) {
                  "regenerate it now?",
                  fileName.c_str(), version);
 
+        Extractor::SetSetupPhase(SetupPhase::NeedRom);
         if (Extractor::ShowYesNoBox("Old OTR File Found", msgBuf) == IDYES) {
-            std::string installPath = Ship::Context::GetAppBundlePath();
+            std::string installPath = Extractor::ResolveInstallPath(Ship::Context::GetAppBundlePath());
             if (!std::filesystem::exists(installPath + "/assets/extractor")) {
                 Extractor::ShowErrorBox(
                     "Extractor assets not found",
@@ -1157,7 +1158,7 @@ extern "C" void InitOTR() {
         !std::filesystem::exists(Ship::Context::LocateFileAcrossAppDirs("oot.otr", appShortName))) {
 
 #if not defined(__SWITCH__) && not defined(__WIIU__)
-        std::string installPath = Ship::Context::GetAppBundlePath();
+        std::string installPath = Extractor::ResolveInstallPath(Ship::Context::GetAppBundlePath());
         if (!std::filesystem::exists(installPath + "/assets/extractor")) {
             Extractor::ShowErrorBox(
                 "Extractor assets not found",
@@ -1166,7 +1167,8 @@ extern "C" void InitOTR() {
         }
 
         bool generatedOtrIsMQ = false;
-        if (Extractor::ShowYesNoBox("No OTR Files", "No OTR files found. Generate one now?") == IDYES) {
+        Extractor::SetSetupPhase(SetupPhase::NeedRom);
+        if (Extractor::ShowYesNoBox("Build game data", "Ship of Harkinian builds its game data from your own Ocarina of Time ROM.\n\nThis takes a few minutes and only happens once. Choose your ROM now?") == IDYES) {
             Extractor extract;
             if (!extract.Run(Ship::Context::GetAppDirectoryPath(appShortName))) {
                 Extractor::ShowErrorBox("Error", "An error occured, no OTR file was generated.\n\nExiting...");
@@ -1177,7 +1179,7 @@ extern "C" void InitOTR() {
         } else {
             exit(1);
         }
-        if (Extractor::ShowYesNoBox("Extraction Complete", "ROM Extracted. Extract another?") == IDYES) {
+        if (Extractor::ShowYesNoBox("Game data ready", "Your game data is ready.\n\nOptional: you can also add the other version of the game (Vanilla or Master Quest). Add another ROM?") == IDYES) {
             Extractor extract;
             if (!extract.Run(Ship::Context::GetAppDirectoryPath(appShortName),
                              generatedOtrIsMQ ? RomSearchMode::Vanilla : RomSearchMode::MQ)) {
@@ -1202,6 +1204,7 @@ extern "C" void InitOTR() {
 
     DetectOTRVersion("oot.otr", false);
     DetectOTRVersion("oot-mq.otr", true);
+    Extractor::SetSetupPhase(SetupPhase::Ready);
 
     OTRGlobals::Instance = new OTRGlobals();
     CustomMessageManager::Instance = new CustomMessageManager();

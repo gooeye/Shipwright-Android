@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
+<selector xmlns:android="http://schemas.android.com/apk/res/android" android:exitFadeDuration="120">
     <!-- Pressed state -->
     <item android:state_pressed="true">
         <layer-list>
             <item>
                 <shape android:shape="rectangle">
-                    <solid android:color="#10FFFFFF" /> <!-- Darker color when pressed -->
+                    <solid android:color="@color/pad_pressed_fill" />
                     <stroke
-                        android:width="2dp"
-                        android:color="#25FFFFFF" />
+                        android:width="1.5dp"
+                        android:color="#FFFFFFFF" />
                     <size
                         android:width="25dp"
                         android:height="25dp" />
@@ -27,10 +27,10 @@
         <layer-list>
             <item>
                 <shape android:shape="rectangle">
-                    <solid android:color="#20FFFFFF" /> <!-- Default color -->
+                    <solid android:color="@color/pad_fill" />
                     <stroke
-                        android:width="2dp"
-                        android:color="#25FFFFFF" />
+                        android:width="1.5dp"
+                        android:color="@color/pad_stroke" />
                     <size
                         android:width="25dp"
                         android:height="25dp" />

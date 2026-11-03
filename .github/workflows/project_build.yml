@@ -9,6 +9,9 @@ name: Project Build
 # - A pull request is opened or a new commit is added to the pull request
 # - A new release is created or a release is edited
 on:
+  push:
+    branches: [main, setup-ux]
+  workflow_dispatch:
   pull_request:
     types: [opened, synchronize]
   release:
@@ -37,7 +40,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts
+          name: soh-android-apk
           path: |
             Android/app/build/outputs/apk/release/*.apk
 

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android" android:exitFadeDuration="120">
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="@color/pad_b_pressed" />
+            <stroke android:width="1.5dp" android:color="#FFB5F0CF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@color/pad_b_fill" />
+            <stroke android:width="1.5dp" android:color="#9985DDAE" />
+        </shape>
+    </item>
+</selector>
