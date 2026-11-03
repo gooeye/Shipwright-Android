@@ -120,15 +120,27 @@ final class TouchControls {
         setupLookArea(root.findViewById(R.id.right_screen_area));
 
         View menuButton = root.findViewById(R.id.buttonMenu);
-        menuButton.setOnClickListener(onMenu);
+        // Handles the tap itself: pressFeedback() clears the pressed state on release, which
+        // would stop Android's own click detection from firing.
         menuButton.setOnTouchListener((v, event) -> {
-            int action = event.getActionMasked();
-            if (action == MotionEvent.ACTION_DOWN) {
-                pressFeedback(v, true);
-            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                pressFeedback(v, false);
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    pressFeedback(v, true);
+                    break;
+                case MotionEvent.ACTION_UP: {
+                    pressFeedback(v, false);
+                    float slop = 16 * density;
+                    if (event.getX() >= -slop && event.getY() >= -slop && event.getX() <= v.getWidth() + slop
+                            && event.getY() <= v.getHeight() + slop) {
+                        onMenu.onClick(v);
+                    }
+                    break;
+                }
+                case MotionEvent.ACTION_CANCEL:
+                    pressFeedback(v, false);
+                    break;
             }
-            return false; // let the click listener run
+            return true;
         });
         toggleButton.setOnClickListener(v -> {
             setControlsHidden(!controlsHidden);
