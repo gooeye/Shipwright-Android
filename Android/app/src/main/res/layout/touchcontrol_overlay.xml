@@ -13,6 +13,14 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
+    <!-- Drag anywhere that isn't a button to move the camera (and to aim in first person).
+         First child so every button sits on top of it. -->
+    <FrameLayout
+        android:id="@+id/right_screen_area"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/transparent" />
+
     <!-- Left Joystick -->
     <FrameLayout
         android:id="@+id/left_joystick"
@@ -31,18 +39,6 @@
             android:layout_height="56dp"
             android:layout_gravity="center"
             android:background="@drawable/ic_stick_knob" />
-    </FrameLayout>
-
-    <FrameLayout
-        android:id="@+id/right_screen_area"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="@android:color/transparent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/left_joystick"
-        app:layout_constraintTop_toTopOf="parent">
-
     </FrameLayout>
 
 
@@ -183,27 +179,12 @@
         app:layout_constraintTop_toBottomOf="@id/buttonRB"
         />
 
-    <!-- Start and Back Buttons -->
-    <Button
-        style="@style/PadButton.Small"
-        android:id="@+id/buttonBack"
-        android:layout_width="58dp"
-        android:layout_height="32dp"
-        android:layout_marginEnd="100dp"
-        android:layout_marginBottom="10dp"
-        android:background="@drawable/ic_rectangular_button"
-        android:text="Back"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        />
-
+    <!-- Start Button -->
     <Button
         style="@style/PadButton.Small"
         android:id="@+id/buttonStart"
-        android:layout_width="58dp"
+        android:layout_width="64dp"
         android:layout_height="32dp"
-        android:layout_marginStart="100dp"
         android:layout_marginBottom="10dp"
         android:background="@drawable/ic_rectangular_button"
         android:text="Start"
@@ -212,6 +193,23 @@
         app:layout_constraintStart_toStartOf="parent"
         />
 </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- Menu Button: opens the pause menu -->
+    <ImageButton
+        android:id="@+id/buttonMenu"
+        android:layout_width="56dp"
+        android:layout_height="32dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/ic_rectangular_button"
+        android:contentDescription="@string/control_menu"
+        android:hapticFeedbackEnabled="true"
+        android:padding="5dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_menu"
+        android:stateListAnimator="@null"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <!-- Toggle Button -->
 <Button

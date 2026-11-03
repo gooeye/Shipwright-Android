@@ -20,6 +20,8 @@ static std::unordered_map<int32_t, const char*> imguiScaleOptions = {
     { 1, "Normal" },
     { 2, "Large" },
     { 3, "X-Large" },
+    { 4, "XX-Large" },
+    { 5, "Huge" },
 };
 
 const char* GetGameVersionString(uint32_t index) {
@@ -202,7 +204,7 @@ void SohMenu::AddMenuSettings() {
         .Options(ComboboxOptions()
                      .ComboMap(imguiScaleOptions)
                      .Tooltip("Changes the scaling of the ImGui menu elements.")
-                     .DefaultIndex(1)
+                     .DefaultIndex(defaultImGuiScale)
                      .ComponentAlignment(ComponentAlignments::Right)
                      .LabelPosition(LabelPositions::Far))
         .Callback([](WidgetInfo& info) { OTRGlobals::Instance->ScaleImGui(); });

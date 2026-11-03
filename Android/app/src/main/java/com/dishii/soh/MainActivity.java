@@ -19,18 +19,14 @@ import android.provider.OpenableColumns;
 import android.provider.Settings;
 import android.util.Log;
 import android.util.SparseArray;
-import android.view.HapticFeedbackConstants;
+import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
-import android.view.animation.OvershootInterpolator;
 import android.widget.Button;
-import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -198,11 +194,12 @@ public class MainActivity extends SDLActivity {
         }
     }
 
+    // An app update ships a new soh.otr (refreshed by the file setup). The game data built from
+    // the ROM (oot.otr / oot-mq.otr) is kept: the game checks its version itself and offers to
+    // rebuild it only when it no longer matches, so updates don't ask for the ROM again.
     private void deleteOutdatedAssets() {
         File root = sohRoot();
         deleteIfExists(new File(root, "soh.otr"));
-        deleteIfExists(new File(root, "oot.otr"));
-        deleteIfExists(new File(root, "oot-mq.otr"));
         SetupFiles.deleteRecursive(new File(root, "assets"));
     }
 
@@ -316,6 +313,7 @@ public class MainActivity extends SDLActivity {
                 deleteImportedRom();
                 return false;
             case PHASE_READY:
+                gameReady = true;
                 if (setupOverlay.isVisible()) {
                     setupOverlay.setAllDone();
                     setupOverlay.setDone(R.string.setup_ready);
@@ -577,230 +575,195 @@ public class MainActivity extends SDLActivity {
     }
 
     // ---------------------------------------------------------------------------------------
-    // Touch controls
+    // Touch controls, pause menu and save states
     // ---------------------------------------------------------------------------------------
 
     public native void attachController();
     public native void detachController();
     public native void setButton(int button, boolean value);
-    public native void setCameraState(int axis, float value);
     public native void setAxis(int axis, short value);
+    public native void addLookDelta(float dxDp, float dyDp);
+    private native void nativeSaveState(int slot, boolean load);
+    private native boolean nativeHasSaveState(int slot);
+    private native void nativeSetTouchControlsVisible(boolean visible);
+    private native int nativeGetSetting(String name, int defaultValue);
+    private native void nativeSetSetting(String name, int value);
 
-    private View overlayView;
-    private boolean touchAreaEnabled = true;
+    // Game settings (CVars) shown as toggles in the pause menu.
+    private static final String SETTING_CAMERA_FOLLOWS = "gSettings.Mobile.CameraFollowsMovement";
+    private static final String SETTING_MOVE_FIRST_PERSON = "gSettings.MoveInFirstPerson";
 
-    void DisableTouchArea() {
-        touchAreaEnabled = false;
+    private TouchControls touchControls;
+    private QuickMenu quickMenu;
+    private boolean gameReady;      // setup finished and the game is running
+    private boolean gameMenuOpen;   // the game's own (ImGui) settings menu is showing
+    private boolean pausedByMenu;   // we paused the game for the pause menu or layout editor
+
+    // Called by native code (game thread) when the game's settings menu closes / opens.
+    void EnableTouchArea() {
+        runOnUiThread(() -> {
+            gameMenuOpen = false;
+            if (touchControls != null) {
+                touchControls.setSuspended(false);
+            }
+        });
     }
 
-    void EnableTouchArea() {
-        touchAreaEnabled = true;
+    void DisableTouchArea() {
+        runOnUiThread(() -> {
+            gameMenuOpen = true;
+            if (touchControls != null) {
+                touchControls.setSuspended(true);
+            }
+        });
     }
 
     private void setupControllerOverlay() {
-        LayoutInflater inflater = (LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
-        overlayView = inflater.inflate(R.layout.touchcontrol_overlay, null);
-        overlayView.setLayoutParams(new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         ViewGroup content = (ViewGroup) getContentView();
-        content.addView(overlayView);
         content.setKeepScreenOn(true);
-
-        final ViewGroup buttonGroup = overlayView.findViewById(R.id.button_group);
-
-        bindButton(R.id.buttonA, ControllerButtons.BUTTON_A);
-        bindButton(R.id.buttonB, ControllerButtons.BUTTON_B);
-        bindButton(R.id.buttonX, ControllerButtons.BUTTON_X);
-        bindButton(R.id.buttonY, ControllerButtons.BUTTON_Y);
-
-        bindCButton(R.id.buttonDpadUp, ControllerButtons.AXIS_RY, 1);
-        bindCButton(R.id.buttonDpadDown, ControllerButtons.AXIS_RY, -1);
-        bindCButton(R.id.buttonDpadLeft, ControllerButtons.AXIS_RX, 1);
-        bindCButton(R.id.buttonDpadRight, ControllerButtons.AXIS_RX, -1);
-
-        bindButton(R.id.buttonLB, ControllerButtons.BUTTON_LB);
-        bindButton(R.id.buttonRB, ControllerButtons.BUTTON_RB);
-        bindButton(R.id.buttonZ, ControllerButtons.AXIS_RT);
-
-        bindButton(R.id.buttonStart, ControllerButtons.BUTTON_START);
-        bindButton(R.id.buttonBack, ControllerButtons.BUTTON_BACK);
-
-        setupJoystick(overlayView.findViewById(R.id.left_joystick),
-                overlayView.findViewById(R.id.left_joystick_knob));
-        setupLookAround(overlayView.findViewById(R.id.right_screen_area));
-        setupToggleButton(overlayView.findViewById(R.id.buttonToggle), buttonGroup);
-    }
-
-    private void setupToggleButton(Button button, ViewGroup uiGroup) {
-        final boolean[] hidden = { preferences.getBoolean("controlsVisible", false) }; // key kept for compatibility
-        uiGroup.setVisibility(hidden[0] ? View.INVISIBLE : View.VISIBLE);
-        button.setAlpha(hidden[0] ? 0.45f : 1f);
-        button.setOnClickListener(v -> {
-            hidden[0] = !hidden[0];
-            uiGroup.animate().cancel();
-            if (hidden[0]) {
-                uiGroup.animate().alpha(0f).setDuration(150)
-                        .withEndAction(() -> uiGroup.setVisibility(View.INVISIBLE)).start();
-            } else {
-                uiGroup.setAlpha(0f);
-                uiGroup.setVisibility(View.VISIBLE);
-                uiGroup.animate().alpha(1f).setDuration(150).withEndAction(null).start();
+        touchControls = new TouchControls(this, content, preferences, new TouchControls.Input() {
+            @Override
+            public void setButton(int button, boolean value) {
+                MainActivity.this.setButton(button, value);
             }
-            button.animate().alpha(hidden[0] ? 0.45f : 1f).setDuration(150).start();
-            v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
-            preferences.edit().putBoolean("controlsVisible", hidden[0]).apply();
+
+            @Override
+            public void setAxis(int axis, short value) {
+                MainActivity.this.setAxis(axis, value);
+            }
+
+            @Override
+            public void addLookDelta(float dxDp, float dyDp) {
+                MainActivity.this.addLookDelta(dxDp, dyDp);
+            }
+
+            @Override
+            public void setControlsVisible(boolean visible) {
+                try {
+                    nativeSetTouchControlsVisible(visible);
+                } catch (UnsatisfiedLinkError e) {
+                    // native library failed to load; SDL shows its own error
+                }
+            }
+        }, v -> openPauseMenu());
+
+        quickMenu = new QuickMenu(this, content, new QuickMenu.Listener() {
+            @Override
+            public void onResumeGame() {
+                closePauseMenu();
+            }
+
+            @Override
+            public void onSaveState(int slot) {
+                nativeSaveState(slot, false);
+                closePauseMenu();
+            }
+
+            @Override
+            public void onLoadState(int slot) {
+                nativeSaveState(slot, true);
+                closePauseMenu();
+            }
+
+            @Override
+            public boolean hasSaveState(int slot) {
+                try {
+                    return nativeHasSaveState(slot);
+                } catch (UnsatisfiedLinkError e) {
+                    return false;
+                }
+            }
+
+            @Override
+            public void onOpenSettings() {
+                closePauseMenu();
+                // The game opens its menu on the Android back key (ImGuiKey_AppBack).
+                SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_BACK);
+                SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_BACK);
+            }
+
+            @Override
+            public void onEditControls() {
+                quickMenu.hide();
+                // Stay paused while editing; resume when the player taps Done.
+                touchControls.startEditing(MainActivity.this::resumeFromMenu);
+            }
+
+            @Override
+            public void onToggleControls() {
+                touchControls.setControlsHidden(!touchControls.areControlsHidden());
+                closePauseMenu();
+            }
+
+            @Override
+            public boolean areControlsHidden() {
+                return touchControls.areControlsHidden();
+            }
         });
+        addPauseMenuToggles();
     }
 
-    private void bindButton(int viewId, int buttonNum) {
-        View button = overlayView.findViewById(viewId);
-        button.setOnTouchListener((v, event) -> {
-            switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    setButton(buttonNum, true);
-                    pressFeedback(v, true);
-                    return true;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    setButton(buttonNum, false);
-                    pressFeedback(v, false);
-                    return true;
-            }
-            return true;
-        });
+    private void addPauseMenuToggles() {
+        quickMenu.addToggle(R.string.toggle_camera_follow,
+                () -> nativeGetSetting(SETTING_CAMERA_FOLLOWS, 1) != 0,
+                on -> nativeSetSetting(SETTING_CAMERA_FOLLOWS, on ? 1 : 0));
+        quickMenu.addToggle(R.string.toggle_move_first_person,
+                () -> nativeGetSetting(SETTING_MOVE_FIRST_PERSON, 1) != 0,
+                on -> nativeSetSetting(SETTING_MOVE_FIRST_PERSON, on ? 1 : 0));
+        quickMenu.addToggle(R.string.toggle_vibration, touchControls::isVibrationOn, touchControls::setVibrationOn);
     }
 
-    private void bindCButton(int viewId, int axis, int direction) {
-        View button = overlayView.findViewById(viewId);
-        button.setOnTouchListener((v, event) -> {
-            switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    setAxis(axis, direction < 0 ? Short.MAX_VALUE : Short.MIN_VALUE);
-                    pressFeedback(v, true);
-                    return true;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    setAxis(axis, (short) 0);
-                    pressFeedback(v, false);
-                    return true;
-            }
-            return true;
-        });
+    private void openPauseMenu() {
+        if (!gameReady || gameMenuOpen || quickMenu.isShowing() || touchControls.isEditing()) {
+            return;
+        }
+        touchControls.releaseAll();
+        pausedByMenu = true;
+        pauseNativeThread();
+        quickMenu.show();
     }
 
-    private static final OvershootInterpolator RELEASE_INTERPOLATOR = new OvershootInterpolator(3f);
+    private void closePauseMenu() {
+        quickMenu.hide();
+        resumeFromMenu();
+    }
 
-    /** Visual "squish", highlight and a light haptic tick for a pressed control. */
-    private void pressFeedback(View v, boolean down) {
-        v.setPressed(down);
-        v.animate().cancel();
-        if (down) {
-            v.animate().scaleX(0.88f).scaleY(0.88f).setDuration(60).setInterpolator(null).start();
-            v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
-        } else {
-            v.animate().scaleX(1f).scaleY(1f).setDuration(180).setInterpolator(RELEASE_INTERPOLATOR).start();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY_RELEASE);
-            }
+    private void resumeFromMenu() {
+        if (pausedByMenu) {
+            pausedByMenu = false;
+            super.resumeNativeThread();
         }
     }
 
-    private void setupLookAround(FrameLayout rightScreenArea) {
-        rightScreenArea.setOnTouchListener(new View.OnTouchListener() {
-            private float lastX;
-            private float lastY;
-            private boolean isTouching;
-
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getActionMasked()) {
-                    case MotionEvent.ACTION_DOWN:
-                        lastX = event.getX();
-                        lastY = event.getY();
-                        isTouching = true;
-                        break;
-                    case MotionEvent.ACTION_MOVE:
-                        if (isTouching) {
-                            float deltaX = event.getX() - lastX;
-                            float deltaY = event.getY() - lastY;
-                            lastX = event.getX();
-                            lastY = event.getY();
-                            float sensitivityMultiplier = 15;
-                            setCameraState(0, deltaX * sensitivityMultiplier);
-                            setCameraState(1, deltaY * sensitivityMultiplier);
-                        }
-                        break;
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL:
-                        isTouching = false;
-                        setCameraState(0, 0.0f);
-                        setCameraState(1, 0.0f);
-                        break;
-                }
-                return touchAreaEnabled;
-            }
-        });
+    // SDL resumes the game when the app returns to the foreground; keep it paused if the pause
+    // menu or the layout editor is still open.
+    @Override
+    protected void resumeNativeThread() {
+        if (pausedByMenu) {
+            return;
+        }
+        super.resumeNativeThread();
     }
 
-    private void setupJoystick(FrameLayout base, ImageView knob) {
-        base.setAlpha(0.75f);
-        base.setOnTouchListener(new View.OnTouchListener() {
-            private boolean atEdge;
-
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                float centerX = base.getWidth() / 2f;
-                float centerY = base.getHeight() / 2f;
-                float maxRadius = base.getWidth() / 2f - knob.getWidth() / 2f;
-
-                switch (event.getActionMasked()) {
-                    case MotionEvent.ACTION_DOWN:
-                        base.animate().cancel();
-                        base.animate().alpha(1f).setDuration(80).start();
-                        knob.animate().cancel();
-                        knob.setPressed(true);
-                        knob.animate().scaleX(1.12f).scaleY(1.12f).setDuration(80).setInterpolator(null).start();
-                        v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
-                        atEdge = false;
-                        // fall through to position the knob
-                    case MotionEvent.ACTION_MOVE: {
-                        float deltaX = event.getX() - centerX;
-                        float deltaY = event.getY() - centerY;
-                        float distance = (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-                        if (distance > maxRadius && distance > 0) {
-                            float scale = maxRadius / distance;
-                            deltaX *= scale;
-                            deltaY *= scale;
-                        }
-                        // A light tick when the stick reaches full tilt, like hitting the gate on a real stick.
-                        boolean edge = distance >= maxRadius * 0.98f;
-                        if (edge && !atEdge && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
-                        }
-                        atEdge = edge;
-
-                        knob.setTranslationX(deltaX);
-                        knob.setTranslationY(deltaY);
-
-                        if (maxRadius > 0) {
-                            setAxis(ControllerButtons.AXIS_LX, (short) (deltaX / maxRadius * Short.MAX_VALUE));
-                            setAxis(ControllerButtons.AXIS_LY, (short) (deltaY / maxRadius * Short.MAX_VALUE));
-                        }
-                        return true;
-                    }
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL:
-                        setAxis(ControllerButtons.AXIS_LX, (short) 0);
-                        setAxis(ControllerButtons.AXIS_LY, (short) 0);
-                        knob.setPressed(false);
-                        knob.animate().translationX(0f).translationY(0f).scaleX(1f).scaleY(1f)
-                                .setDuration(220).setInterpolator(RELEASE_INTERPOLATOR).start();
-                        base.animate().alpha(0.75f).setDuration(200).start();
-                        return true;
+    // Back opens the pause menu (or closes whatever is open on top of the game). A gamepad's own
+    // back/select button still goes to the game.
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        boolean fromGamepad = (event.getSource() & (InputDevice.SOURCE_GAMEPAD | InputDevice.SOURCE_JOYSTICK)) != 0;
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && gameReady && !fromGamepad && !gameMenuOpen
+                && touchControls != null) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                if (touchControls.isEditing()) {
+                    touchControls.finishEditing();
+                } else if (quickMenu.isShowing()) {
+                    closePauseMenu();
+                } else {
+                    openPauseMenu();
                 }
-                return true;
             }
-        });
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     @Override

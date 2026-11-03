@@ -20,8 +20,22 @@ android {
         }
         minSdkVersion 24
         targetSdkVersion 33
-        versionCode 9
-        versionName "9.0.2-ux1"
+        versionCode 10
+        versionName "9.0.2-ux2"
+    }
+    signingConfigs {
+        // Optional fixed release key, so each new build installs over the previous one. Set
+        // SOH_KEYSTORE_FILE, SOH_KEYSTORE_PASSWORD, SOH_KEY_ALIAS and SOH_KEY_PASSWORD (CI reads
+        // them from repository secrets). Without them, builds use the per-machine debug key.
+        release {
+            def keystore = System.getenv("SOH_KEYSTORE_FILE")
+            if (keystore != null && !keystore.isEmpty() && file(keystore).exists()) {
+                storeFile file(keystore)
+                storePassword System.getenv("SOH_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("SOH_KEY_ALIAS")
+                keyPassword System.getenv("SOH_KEY_PASSWORD")
+            }
+        }
     }
     buildTypes {
         debug {
@@ -37,7 +51,7 @@ android {
             minifyEnabled false
             debuggable false
             jniDebuggable false
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release.storeFile != null ? signingConfigs.release : signingConfigs.debug
             externalNativeBuild {
                 cmake {
                     arguments "-DSDL_SHARED=ON", "-DANDROID_STL=c++_static", "-DHAVE_LD_VERSION_SCRIPT=OFF",'-DUSE_OPENGLES=ON'

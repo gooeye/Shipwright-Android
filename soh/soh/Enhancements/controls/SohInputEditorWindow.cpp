@@ -1429,6 +1429,14 @@ void SohInputEditorWindow::DrawCameraControlPanel() {
             .Color(THEME_COLOR)
             .Tooltip("Enables free look camera control\nNote: You must remap C buttons off of the right stick in the "
                      "controller config menu, and map the camera stick to the right stick."));
+#ifdef __ANDROID__
+    CVarCheckbox("Camera Follows Movement", CVAR_SETTING("Mobile.CameraFollowsMovement"),
+                 CheckboxOptions()
+                     .Color(THEME_COLOR)
+                     .DefaultValue(true)
+                     .Tooltip("After dragging the screen to look around, walking with the stick brings back the "
+                              "normal camera that follows Link.\nTurn off to keep the camera angle while walking."));
+#endif
     CVarCheckbox("Invert Camera X Axis", CVAR_SETTING("FreeLook.InvertXAxis"),
                  CheckboxOptions().Color(THEME_COLOR).Tooltip("Inverts the Camera X Axis in:\n-Free look"));
     CVarCheckbox(

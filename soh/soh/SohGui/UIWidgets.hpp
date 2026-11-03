@@ -16,6 +16,16 @@ namespace UIWidgets {
 
 using SectionFunc = void (*)();
 
+// Menu scale chosen in Settings ("ImGui Menu Scaling"). Set by OTRGlobals::ScaleImGui.
+void SetUiScale(float scale);
+float UiScale();
+// Rounder, borderless widgets with clearer on/off states, meant for touch screens.
+bool ModernStyle();
+float WidgetRounding();
+// PushStyleVar with sizes multiplied by UiScale(), so hard-coded paddings grow with the menu.
+void PushStyleVarScaled(ImGuiStyleVar idx, float value);
+void PushStyleVarScaled(ImGuiStyleVar idx, const ImVec2& value);
+
 struct TextFilters {
     static int FilterNumbers(ImGuiInputTextCallbackData* data) {
         if (data->EventChar < 256 && strchr("1234567890", (char)data->EventChar)) {

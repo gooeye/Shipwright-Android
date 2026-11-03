@@ -38,21 +38,9 @@ s32 Camera_UpdateWater(Camera* camera);
 #include "z_camera_data.inc"
 
 #ifdef __ANDROID__
-#include "jni.h"
-
-float touchCameraYaw=0;
-float touchCameraPitch=0;
-
-extern void JNICALL Java_com_dishii_soh_MainActivity_setCameraState(JNIEnv *env, jobject jobj, jint axis, jfloat value) {
-    switch(axis){
-        case 0:
-            touchCameraYaw=value;
-            break;
-        case 1:
-            touchCameraPitch=value;
-            break;
-    }
-}
+// Drag-to-look from the touch screen, see soh/Enhancements/controls/MobileBridge.cpp
+void TouchLook_ApplyThirdPerson(f32* newCamX, f32* newCamY);
+s32 TouchLook_FramesSinceDrag(void);
 #endif
 
 /*===============================================================*/
@@ -1440,8 +1428,7 @@ s32 SetCameraManual(Camera* camera) {
     f32 newCamY = D_8015BD7C->state.input[0].cur.right_stick_y * 10.0f;
 
 #ifdef __ANDROID__
-    newCamX += -touchCameraYaw*10.0f;
-    newCamY += touchCameraPitch*10.0f;
+    TouchLook_ApplyThirdPerson(&newCamX, &newCamY);
 #endif
 
     Mouse_HandleThirdPerson(&newCamX, &newCamY);
@@ -1455,6 +1442,27 @@ s32 SetCameraManual(Camera* camera) {
         camera->play->camX = eyeAdjustment.yaw;
         camera->play->camY = eyeAdjustment.pitch;
     }
+
+#ifdef __ANDROID__
+    {
+        // "Camera follows movement" (on by default): after looking around by dragging, walking
+        // with the stick hands the camera back to the normal follow camera. Off: the camera keeps
+        // its angle while walking, so e.g. walking back towards it doesn't turn the view around.
+        Input* input = &D_8015BD7C->state.input[0];
+        bool moving = ABS(input->rel.stick_x) > 8 || ABS(input->rel.stick_y) > 8;
+        if (CVarGetInteger(CVAR_SETTING("Mobile.CameraFollowsMovement"), 1)) {
+            if (camera->play->manualCamera && moving && TouchLook_FramesSinceDrag() > 20) {
+                camera->play->manualCamera = false;
+            }
+        } else if (!camera->play->manualCamera) {
+            camera->play->manualCamera = true;
+            VecSph eyeAdjustment;
+            OLib_Vec3fDiffToVecSphGeo(&eyeAdjustment, &camera->at, &camera->eye);
+            camera->play->camX = eyeAdjustment.yaw;
+            camera->play->camY = eyeAdjustment.pitch;
+        }
+    }
+#endif
 
     if (camera->play->manualCamera) {
         return 1;
@@ -1513,8 +1521,7 @@ s32 Camera_Free(Camera* camera) {
     f32 newCamY = +D_8015BD7C->state.input[0].cur.right_stick_y * 10.0f;
 
 #ifdef __ANDROID__
-    newCamX += -touchCameraYaw*10.0f;
-    newCamY += touchCameraPitch*10.0f;
+    TouchLook_ApplyThirdPerson(&newCamX, &newCamY);
 #endif
 
     /* Disable mouse movement when holding down the shield */

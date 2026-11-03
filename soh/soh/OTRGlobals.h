@@ -41,7 +41,15 @@ const uint32_t defaultImGuiScale = 3;
 const uint32_t defaultImGuiScale = 1;
 #endif
 
-const float imguiScaleOptionToValue[4] = { 0.75f, 1.0f, 1.5f, 2.0f };
+const float imguiScaleOptionToValue[6] = { 0.75f, 1.0f, 1.5f, 2.0f, 2.5f, 3.0f };
+
+#ifdef __ANDROID__
+// Fonts are rasterized at this multiple of their nominal size, so the large menu scale used on
+// phones draws sharp text instead of upscaled, blurry glyphs.
+const float imguiFontRasterScale = 2.0f;
+#else
+const float imguiFontRasterScale = 1.0f;
+#endif
 
 class OTRGlobals {
   public:
@@ -80,6 +88,9 @@ class OTRGlobals {
     bool hasOriginal;
     ImFont* CreateDefaultFontWithSize(float size);
     ImFont* CreateFontWithSize(float size, std::string fontPath);
+#ifdef __ANDROID__
+    void ApplyTouchStyle();
+#endif
 };
 #endif
 

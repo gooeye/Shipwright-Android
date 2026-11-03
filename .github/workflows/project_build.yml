@@ -10,7 +10,7 @@ name: Project Build
 # - A new release is created or a release is edited
 on:
   push:
-    branches: [main, setup-ux]
+    branches: [main, setup-ux, 'ccr-*']
   workflow_dispatch:
   pull_request:
     types: [opened, synchronize]
@@ -31,7 +31,25 @@ jobs:
         with:
           submodules: recursive
 
+      # Optional: sign with a fixed key so each build installs over the last one. Add the
+      # repository secrets SOH_KEYSTORE_BASE64 (base64 of the .jks), SOH_KEYSTORE_PASSWORD,
+      # SOH_KEY_ALIAS and SOH_KEY_PASSWORD. Without them the APK is signed with a throwaway key.
+      - name: Load signing key
+        env:
+          SOH_KEYSTORE_BASE64: ${{ secrets.SOH_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$SOH_KEYSTORE_BASE64" ]; then
+            echo "$SOH_KEYSTORE_BASE64" | base64 -d > Android/signing.jks
+            echo "SOH_KEYSTORE_FILE=/workspace/Android/signing.jks" >> "$GITHUB_ENV"
+          else
+            echo "No signing secrets set; using a throwaway debug key."
+          fi
+
       - name: Setup and build the project
+        env:
+          SOH_KEYSTORE_PASSWORD: ${{ secrets.SOH_KEYSTORE_PASSWORD }}
+          SOH_KEY_ALIAS: ${{ secrets.SOH_KEY_ALIAS }}
+          SOH_KEY_PASSWORD: ${{ secrets.SOH_KEY_PASSWORD }}
         run: |
           cd docker
           make setup

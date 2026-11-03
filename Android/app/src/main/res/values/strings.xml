@@ -29,4 +29,46 @@
     <string name="setup_error_title">Setup didn\'t finish</string>
     <string name="setup_retry">Try again</string>
     <string name="setup_rom_import_failed">Couldn\'t read that file. Try picking it again.</string>
+
+    <string name="quick_title">Paused</string>
+    <string name="quick_resume">Resume</string>
+    <string name="quick_states">Save states</string>
+    <string name="quick_slot">Slot %1$d</string>
+    <string name="quick_slot_empty">Empty</string>
+    <string name="quick_slot_saved">Saved</string>
+    <string name="quick_save_state">Save state</string>
+    <string name="quick_load_state">Load state</string>
+    <string name="quick_states_note">A state snapshots this exact moment. States last until the app closes and only load in the room they were saved in. Use the in-game save for real progress.</string>
+    <string name="quick_controls">Controls</string>
+    <string name="quick_on">On</string>
+    <string name="quick_off">Off</string>
+    <string name="toggle_camera_follow">Camera follows</string>
+    <string name="toggle_move_first_person">Walk in 1st person</string>
+    <string name="toggle_vibration">Vibration</string>
+    <string name="quick_settings">Game settings</string>
+    <string name="quick_edit_controls">Edit controls</string>
+    <string name="quick_hide_controls">Hide controls</string>
+    <string name="quick_show_controls">Show controls</string>
+
+    <string name="editor_hint">Drag a control to move it. Pinch or use the slider to resize.</string>
+    <string name="editor_size">Size %1$d%%</string>
+    <string name="editor_opacity">Opacity %1$d%%</string>
+    <string name="editor_hide">Hide</string>
+    <string name="editor_show">Show</string>
+    <string name="editor_reset">Reset</string>
+    <string name="editor_done">Done</string>
+    <string name="editor_hidden_suffix">%1$s (hidden)</string>
+
+    <string name="control_stick">Stick</string>
+    <string name="control_c">C buttons</string>
+    <string name="control_a">A button</string>
+    <string name="control_b">B button</string>
+    <string name="control_x">X button</string>
+    <string name="control_y">Y button</string>
+    <string name="control_l">L button</string>
+    <string name="control_r">R button</string>
+    <string name="control_z">Z button</string>
+    <string name="control_start">Start button</string>
+    <string name="control_menu">Menu button</string>
+    <string name="control_toggle">Show/hide button</string>
 </resources>
