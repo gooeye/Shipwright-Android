@@ -20,8 +20,10 @@ android {
         }
         minSdkVersion 24
         targetSdkVersion 33
-        versionCode 10
-        versionName "9.0.2-ux2"
+        // Minutes since 2026-01-01 at build time, so every new build installs as an update
+        // (installers treat an APK with the same version code as already installed).
+        versionCode 100000 + (int) ((System.currentTimeMillis().intdiv(1000L) - 1767225600L).intdiv(60L))
+        versionName "9.0.2-ux3"
     }
     signingConfigs {
         // Optional fixed release key, so each new build installs over the previous one. Set

@@ -4,7 +4,7 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     android:versionCode="10"
-    android:versionName="9.0.2-ux2"
+    android:versionName="9.0.2-ux3"
     android:installLocation="auto">
 
     <!-- OpenGL ES 3.0 -->
