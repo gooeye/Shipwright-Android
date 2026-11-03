@@ -107,11 +107,10 @@ void HandleFirstPersonAim(Player* player) {
 
 void RegisterMobileHooks() {
     // Touch-friendly defaults, applied once; a player who changes them keeps their choice.
-    // - Drag-to-look in third person goes through the Free Look camera.
-    // - In first person the stick walks and dragging aims, and the view stays where it's aimed.
+    // In first person the stick walks and dragging aims, and the view stays where it's aimed.
+    // (Drag-to-look in third person has its own setting, see Camera_FreeLookEnabled.)
     bool changed = false;
-    for (const char* name : { CVAR_SETTING("FreeLook.Enabled"), CVAR_SETTING("MoveInFirstPerson"),
-                              CVAR_SETTING("DisableFirstPersonAutoCenterView") }) {
+    for (const char* name : { CVAR_SETTING("MoveInFirstPerson"), CVAR_SETTING("DisableFirstPersonAutoCenterView") }) {
         if (CVarGetInteger(name, -1) == -1) {
             CVarSetInteger(name, 1);
             changed = true;
@@ -153,7 +152,9 @@ s32 TouchLook_FramesSinceDrag() {
 // Adds this frame's drag to the third-person camera input (same scale as the right stick * 10).
 // Called right after the right stick was read and before the mouse.
 void TouchLook_ApplyThirdPerson(f32* newCamX, f32* newCamY) {
-    if (sTouchControlsVisible) {
+    // The right stick only turns the camera when the controller Free Look option is on (and the
+    // touch C buttons, which also drive it, aren't showing); otherwise it's just the C buttons.
+    if (sTouchControlsVisible || !CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0)) {
         *newCamX = 0.0f;
         *newCamY = 0.0f;
     }

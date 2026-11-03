@@ -37,6 +37,17 @@ s32 Camera_UpdateWater(Camera* camera);
 
 #include "z_camera_data.inc"
 
+// Free Look camera (manual camera control). On Android, dragging the screen uses it too, with its
+// own setting so it works even when the controller Free Look option is off.
+s32 Camera_FreeLookEnabled(void) {
+#ifdef __ANDROID__
+    if (CVarGetInteger(CVAR_SETTING("Mobile.DragToLook"), 1)) {
+        return true;
+    }
+#endif
+    return CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0);
+}
+
 #ifdef __ANDROID__
 // Drag-to-look from the touch screen, see soh/Enhancements/controls/MobileBridge.cpp
 void TouchLook_ApplyThirdPerson(f32* newCamX, f32* newCamY);
@@ -1572,7 +1583,7 @@ s32 Camera_Free(Camera* camera) {
 }
 
 s32 Camera_Normal1(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -1818,7 +1829,7 @@ s32 Camera_Normal1(Camera* camera) {
 }
 
 s32 Camera_Normal2(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -1989,7 +2000,7 @@ s32 Camera_Normal2(Camera* camera) {
 
 // riding epona
 s32 Camera_Normal3(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -2353,7 +2364,7 @@ s32 Camera_Parallel0(Camera* camera) {
  * Generic jump, jumping off ledges
  */
 s32 Camera_Jump1(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -2503,7 +2514,7 @@ s32 Camera_Jump1(Camera* camera) {
 
 // Climbing ladders/vines
 s32 Camera_Jump2(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -2690,7 +2701,7 @@ s32 Camera_Jump2(Camera* camera) {
 
 // swimming
 s32 Camera_Jump3(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -3152,7 +3163,7 @@ s32 Camera_Battle3(Camera* camera) {
  * setting value.
  */
 s32 Camera_Battle4(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -4687,7 +4698,7 @@ s32 Camera_Data4(Camera* camera) {
  * Hanging off of a ledge
  */
 s32 Camera_Unique1(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -7940,7 +7951,7 @@ s32 Camera_ChangeModeFlags(Camera* camera, s16 mode, u8 flags) {
         }
 
         // Clear free look if an action is performed that would move the camera (targeting, first person, talking)
-        if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1 &&
+        if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1 &&
             ((mode >= CAM_MODE_TARGET && mode <= CAM_MODE_BATTLE) ||
              (mode >= CAM_MODE_FIRSTPERSON && mode <= CAM_MODE_CLIMBZ) || mode == CAM_MODE_HANGZ ||
              mode == CAM_MODE_FOLLOWBOOMERANG)) {

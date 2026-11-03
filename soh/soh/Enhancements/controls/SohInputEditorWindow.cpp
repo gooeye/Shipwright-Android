@@ -1430,6 +1430,11 @@ void SohInputEditorWindow::DrawCameraControlPanel() {
             .Tooltip("Enables free look camera control\nNote: You must remap C buttons off of the right stick in the "
                      "controller config menu, and map the camera stick to the right stick."));
 #ifdef __ANDROID__
+    CVarCheckbox("Drag Screen to Look", CVAR_SETTING("Mobile.DragToLook"),
+                 CheckboxOptions()
+                     .Color(THEME_COLOR)
+                     .DefaultValue(true)
+                     .Tooltip("Drag anywhere on the screen that isn't a touch button to move the camera."));
     CVarCheckbox("Camera Follows Movement", CVAR_SETTING("Mobile.CameraFollowsMovement"),
                  CheckboxOptions()
                      .Color(THEME_COLOR)

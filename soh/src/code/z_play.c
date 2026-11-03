@@ -21,6 +21,8 @@
 #include <time.h>
 #include <assert.h>
 
+s32 Camera_FreeLookEnabled(void);
+
 TransitionUnk sTrnsnUnk;
 s32 gTrnsnUnkState;
 VisMono gPlayVisMono;
@@ -722,7 +724,7 @@ void Play_Update(PlayState* play) {
         // ActorOverlayTable_LogPrint();
     }
 
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && Player_InCsMode(play)) {
+    if (Camera_FreeLookEnabled() && Player_InCsMode(play)) {
         play->manualCamera = false;
     }
 
