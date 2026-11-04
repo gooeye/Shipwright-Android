@@ -337,8 +337,8 @@ OTRGlobals::OTRGlobals() {
     context->InitWindow(sohFast3dWindow);
 
     auto overlay = context->GetInstance()->GetWindow()->GetGui()->GetGameOverlay();
-    overlay->LoadFont("Press Start 2P", 12.0f, "fonts/PressStart2P-Regular.ttf");
-    overlay->LoadFont("Fipps", 32.0f, "fonts/Fipps-Regular.otf");
+    overlay->LoadFont("Press Start 2P", 12.0f * imguiFontRasterScale, "fonts/PressStart2P-Regular.ttf");
+    overlay->LoadFont("Fipps", 32.0f * imguiFontRasterScale, "fonts/Fipps-Regular.otf");
     overlay->SetCurrentFont(CVarGetString(CVAR_GAME_OVERLAY_FONT, "Press Start 2P"));
 
     context->InitAudio({ .SampleRate = 44100, .SampleLength = 1024, .DesiredBuffered = 2480 });
@@ -423,7 +423,14 @@ OTRGlobals::OTRGlobals() {
 
     hasMasterQuest = hasOriginal = false;
 
+#ifdef __ANDROID__
+    // Replaces libultraship's blanket 3x Android style with an unscaled touch style, so the menu
+    // scale option below is the only scaling applied.
+    ApplyTouchStyle();
+    previousImGuiScale = 1.0f;
+#else
     previousImGuiScale = defaultImGuiScale;
+#endif
 
     fontMonoSmall = CreateFontWithSize(14.0f, "fonts/Inconsolata-Regular.ttf");
     fontMono = CreateFontWithSize(16.0f, "fonts/Inconsolata-Regular.ttf");
@@ -491,22 +498,74 @@ OTRGlobals::~OTRGlobals() {
 }
 
 void OTRGlobals::ScaleImGui() {
-    float scale = imguiScaleOptionToValue[CVarGetInteger(CVAR_SETTING("ImGuiScale"), defaultImGuiScale)];
+    int32_t option = CVarGetInteger(CVAR_SETTING("ImGuiScale"), defaultImGuiScale);
+    constexpr int32_t optionCount = sizeof(imguiScaleOptionToValue) / sizeof(imguiScaleOptionToValue[0]);
+    if (option < 0 || option >= optionCount) {
+        option = defaultImGuiScale;
+    }
+    float scale = imguiScaleOptionToValue[option];
     float newScale = scale / previousImGuiScale;
     ImGui::GetStyle().ScaleAllSizes(newScale);
-    ImGui::GetIO().FontGlobalScale = scale;
+    ImGui::GetIO().FontGlobalScale = scale / imguiFontRasterScale;
     previousImGuiScale = scale;
+    UIWidgets::SetUiScale(scale);
 }
+
+#ifdef __ANDROID__
+// Rounded, roomy, dark style for touch screens. Sizes are unscaled; ScaleImGui scales them.
+void OTRGlobals::ApplyTouchStyle() {
+    ImGuiStyle& style = ImGui::GetStyle();
+    style = ImGuiStyle(); // unscaled defaults
+    style.WindowPadding = ImVec2(12.0f, 12.0f);
+    style.FramePadding = ImVec2(10.0f, 8.0f);
+    style.ItemSpacing = ImVec2(10.0f, 10.0f);
+    style.ItemInnerSpacing = ImVec2(8.0f, 6.0f);
+    style.TouchExtraPadding = ImVec2(2.0f, 2.0f);
+    style.ScrollbarSize = 6.0f; // swiping scrolls now, the bar is just a position hint
+    style.GrabMinSize = 18.0f;
+    style.WindowRounding = 12.0f;
+    style.ChildRounding = 10.0f;
+    style.FrameRounding = 8.0f;
+    style.PopupRounding = 10.0f;
+    style.ScrollbarRounding = 6.0f;
+    style.GrabRounding = 8.0f;
+    style.TabRounding = 8.0f;
+    style.WindowBorderSize = 0.0f;
+    style.PopupBorderSize = 0.0f;
+    style.FrameBorderSize = 0.0f;
+
+    ImVec4* c = style.Colors;
+    c[ImGuiCol_WindowBg] = ImVec4(0.07f, 0.08f, 0.10f, 0.96f);
+    c[ImGuiCol_ChildBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    c[ImGuiCol_PopupBg] = ImVec4(0.11f, 0.12f, 0.15f, 0.98f);
+    c[ImGuiCol_Border] = ImVec4(1.0f, 1.0f, 1.0f, 0.08f);
+    c[ImGuiCol_FrameBg] = ImVec4(0.18f, 0.20f, 0.24f, 1.0f);
+    c[ImGuiCol_FrameBgHovered] = ImVec4(0.24f, 0.26f, 0.31f, 1.0f);
+    c[ImGuiCol_FrameBgActive] = ImVec4(0.28f, 0.31f, 0.37f, 1.0f);
+    c[ImGuiCol_TitleBg] = ImVec4(0.09f, 0.10f, 0.13f, 1.0f);
+    c[ImGuiCol_TitleBgActive] = ImVec4(0.12f, 0.13f, 0.17f, 1.0f);
+    c[ImGuiCol_ScrollbarBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    c[ImGuiCol_ScrollbarGrab] = ImVec4(1.0f, 1.0f, 1.0f, 0.18f);
+    c[ImGuiCol_ScrollbarGrabHovered] = ImVec4(1.0f, 1.0f, 1.0f, 0.28f);
+    c[ImGuiCol_ScrollbarGrabActive] = ImVec4(1.0f, 1.0f, 1.0f, 0.36f);
+    c[ImGuiCol_Separator] = ImVec4(1.0f, 1.0f, 1.0f, 0.10f);
+    c[ImGuiCol_Header] = ImVec4(0.25f, 0.45f, 0.85f, 0.35f);
+    c[ImGuiCol_HeaderHovered] = ImVec4(0.25f, 0.45f, 0.85f, 0.50f);
+    c[ImGuiCol_HeaderActive] = ImVec4(0.25f, 0.45f, 0.85f, 0.65f);
+    c[ImGuiCol_Text] = ImVec4(0.94f, 0.95f, 0.97f, 1.0f);
+    c[ImGuiCol_TextDisabled] = ImVec4(0.55f, 0.58f, 0.63f, 1.0f);
+}
+#endif
 
 ImFont* OTRGlobals::CreateDefaultFontWithSize(float size) {
     auto mImGuiIo = &ImGui::GetIO();
     ImFontConfig fontCfg = ImFontConfig();
     fontCfg.OversampleH = fontCfg.OversampleV = 1;
     fontCfg.PixelSnapH = true;
-    fontCfg.SizePixels = size;
+    fontCfg.SizePixels = size * imguiFontRasterScale;
     ImFont* font = mImGuiIo->Fonts->AddFontDefault(&fontCfg);
     // FontAwesome fonts need to have their sizes reduced by 2.0f/3.0f in order to align correctly
-    float iconFontSize = size * 2.0f / 3.0f;
+    float iconFontSize = size * imguiFontRasterScale * 2.0f / 3.0f;
     static const ImWchar sIconsRanges[] = { ICON_MIN_FA, ICON_MAX_16_FA, 0 };
     ImFontConfig iconsConfig;
     iconsConfig.MergeMode = true;
@@ -1038,8 +1097,9 @@ void DetectOTRVersion(std::string fileName, bool isMQ) {
                  "regenerate it now?",
                  fileName.c_str(), version);
 
+        Extractor::SetSetupPhase(SetupPhase::NeedRom);
         if (Extractor::ShowYesNoBox("Old OTR File Found", msgBuf) == IDYES) {
-            std::string installPath = Ship::Context::GetAppBundlePath();
+            std::string installPath = Extractor::ResolveInstallPath(Ship::Context::GetAppBundlePath());
             if (!std::filesystem::exists(installPath + "/assets/extractor")) {
                 Extractor::ShowErrorBox(
                     "Extractor assets not found",
@@ -1157,7 +1217,7 @@ extern "C" void InitOTR() {
         !std::filesystem::exists(Ship::Context::LocateFileAcrossAppDirs("oot.otr", appShortName))) {
 
 #if not defined(__SWITCH__) && not defined(__WIIU__)
-        std::string installPath = Ship::Context::GetAppBundlePath();
+        std::string installPath = Extractor::ResolveInstallPath(Ship::Context::GetAppBundlePath());
         if (!std::filesystem::exists(installPath + "/assets/extractor")) {
             Extractor::ShowErrorBox(
                 "Extractor assets not found",
@@ -1166,7 +1226,8 @@ extern "C" void InitOTR() {
         }
 
         bool generatedOtrIsMQ = false;
-        if (Extractor::ShowYesNoBox("No OTR Files", "No OTR files found. Generate one now?") == IDYES) {
+        Extractor::SetSetupPhase(SetupPhase::NeedRom);
+        if (Extractor::ShowYesNoBox("Build game data", "Ship of Harkinian builds its game data from your own Ocarina of Time ROM.\n\nThis takes a few minutes and only happens once. Choose your ROM now?") == IDYES) {
             Extractor extract;
             if (!extract.Run(Ship::Context::GetAppDirectoryPath(appShortName))) {
                 Extractor::ShowErrorBox("Error", "An error occured, no OTR file was generated.\n\nExiting...");
@@ -1177,7 +1238,7 @@ extern "C" void InitOTR() {
         } else {
             exit(1);
         }
-        if (Extractor::ShowYesNoBox("Extraction Complete", "ROM Extracted. Extract another?") == IDYES) {
+        if (Extractor::ShowYesNoBox("Game data ready", "Your game data is ready.\n\nOptional: you can also add the other version of the game (Vanilla or Master Quest). Add another ROM?") == IDYES) {
             Extractor extract;
             if (!extract.Run(Ship::Context::GetAppDirectoryPath(appShortName),
                              generatedOtrIsMQ ? RomSearchMode::Vanilla : RomSearchMode::MQ)) {
@@ -1202,6 +1263,7 @@ extern "C" void InitOTR() {
 
     DetectOTRVersion("oot.otr", false);
     DetectOTRVersion("oot-mq.otr", true);
+    Extractor::SetSetupPhase(SetupPhase::Ready);
 
     OTRGlobals::Instance = new OTRGlobals();
     CustomMessageManager::Instance = new CustomMessageManager();
@@ -1336,7 +1398,14 @@ extern "C" uint64_t GetUnixTimestamp() {
     return (uint64_t)millis.count();
 }
 
+#ifdef __ANDROID__
+extern "C" void Mobile_StartFrame();
+#endif
+
 extern "C" void Graph_StartFrame() {
+#ifdef __ANDROID__
+    Mobile_StartFrame();
+#endif
 #ifndef __WIIU__
     using Ship::KbScancode;
     int32_t dwScancode = OTRGlobals::Instance->context->GetWindow()->GetLastScancode();
@@ -1631,7 +1700,7 @@ ImFont* OTRGlobals::CreateFontWithSize(float size, std::string fontPath) {
         ImFontConfig fontCfg = ImFontConfig();
         fontCfg.OversampleH = fontCfg.OversampleV = 1;
         fontCfg.PixelSnapH = true;
-        fontCfg.SizePixels = size;
+        fontCfg.SizePixels = size * imguiFontRasterScale;
         font = mImGuiIo->Fonts->AddFontDefault(&fontCfg);
     } else {
         auto initData = std::make_shared<Ship::ResourceInitData>();
@@ -1641,10 +1710,10 @@ ImFont* OTRGlobals::CreateFontWithSize(float size, std::string fontPath) {
         initData->Path = fontPath;
         std::shared_ptr<Ship::Font> fontData = std::static_pointer_cast<Ship::Font>(
             Ship::Context::GetInstance()->GetResourceManager()->LoadResource(fontPath, false, initData));
-        font = mImGuiIo->Fonts->AddFontFromMemoryTTF(fontData->Data, fontData->DataSize, size);
+        font = mImGuiIo->Fonts->AddFontFromMemoryTTF(fontData->Data, fontData->DataSize, size * imguiFontRasterScale);
     }
     // FontAwesome fonts need to have their sizes reduced by 2.0f/3.0f in order to align correctly
-    float iconFontSize = size * 2.0f / 3.0f;
+    float iconFontSize = size * imguiFontRasterScale * 2.0f / 3.0f;
     static const ImWchar sIconsRanges[] = { ICON_MIN_FA, ICON_MAX_16_FA, 0 };
     ImFontConfig iconsConfig;
     iconsConfig.MergeMode = true;

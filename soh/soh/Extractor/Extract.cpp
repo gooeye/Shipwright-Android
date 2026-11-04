@@ -53,6 +53,7 @@
 #include <unordered_map>
 #include <random>
 #include <string>
+#include <atomic>
 
 extern "C" uint32_t CRC32C(unsigned char* data, size_t dataSize);
 
@@ -115,8 +116,16 @@ enum class ButtonId : int {
 };
 
 #ifdef __ANDROID__
-const char* javaRomPath = NULL;
-bool fileDialogOpen = false;
+// Written from the Java UI thread, read from the native game thread.
+static std::atomic<const char*> javaRomPath{ nullptr };
+static std::atomic<bool> fileDialogOpen{ false };
+
+// Defined in ZAPD (Main.cpp): number of XML files still being processed during extraction.
+extern volatile int numWorkersLeft;
+
+static std::atomic<int> sSetupPhase{ (int)SetupPhase::Boot };
+static std::atomic<int> sExtractTotalFiles{ 0 };
+static std::atomic<bool> sExtractWorkersStarted{ false };
 
 //function to be called from C
 void openFilePickerFromC(JNIEnv* env, jobject javaObject) {
@@ -125,15 +134,68 @@ void openFilePickerFromC(JNIEnv* env, jobject javaObject) {
     jmethodID openFilePickerMethod = env->GetMethodID(javaClass, "openFilePicker", "()V");
     env->CallVoidMethod(javaObject, openFilePickerMethod);
 }
-// Define the native method to handle the selected file path
-extern "C" void JNICALL Java_com_dishii_soh_MainActivity_nativeHandleSelectedFile(JNIEnv* env, jobject obj, jstring filePath) {
+// Called by Java once the picker closes. An empty path means the user cancelled.
+extern "C" JNIEXPORT void JNICALL Java_com_dishii_soh_MainActivity_nativeHandleSelectedFile(JNIEnv* env, jobject obj, jstring filePath) {
     const char* filePathStr = env->GetStringUTFChars(filePath, 0);
-    javaRomPath = strdup(filePathStr); // save filepath to string
-    fileDialogOpen = false;
+    const char* previous = javaRomPath.exchange(strdup(filePathStr));
+    if (previous != nullptr) {
+        free((void*)previous);
+    }
+    if (filePathStr[0] != '\0') {
+        sSetupPhase = (int)SetupPhase::ReadingRom; // validating the ROM until extraction starts
+    }
     env->ReleaseStringUTFChars(filePath, filePathStr);
+    fileDialogOpen = false;
 }
 
+// Polled by the Java setup screen: { phase, filesDone, filesTotal }.
+extern "C" JNIEXPORT jintArray JNICALL Java_com_dishii_soh_MainActivity_nativeGetSetupState(JNIEnv* env, jclass clazz) {
+    int phase = sSetupPhase.load();
+    int done = 0;
+    int total = sExtractTotalFiles.load();
+
+    if (phase == (int)SetupPhase::Extracting) {
+        int left = numWorkersLeft;
+        if (!sExtractWorkersStarted && left > 0) {
+            sExtractWorkersStarted = true;
+        }
+        if (!sExtractWorkersStarted) {
+            phase = (int)SetupPhase::ReadingRom; // ZAPD is still loading the ROM and config
+        } else if (left <= 0) {
+            phase = (int)SetupPhase::Packing; // all XMLs processed, OTR archive being written
+        } else {
+            if (total < left) {
+                total = left;
+            }
+            done = total - left;
+        }
+    }
+
+    jint values[3] = { phase, done, total };
+    jintArray result = env->NewIntArray(3);
+    env->SetIntArrayRegion(result, 0, 3, values);
+    return result;
+}
 #endif
+
+void Extractor::SetSetupPhase(SetupPhase phase) {
+#ifdef __ANDROID__
+    sSetupPhase = (int)phase;
+#endif
+}
+
+std::string Extractor::ResolveInstallPath(const std::string& fallback) {
+#ifdef __ANDROID__
+    const char* internal = SDL_AndroidGetInternalStoragePath();
+    if (internal != nullptr) {
+        std::string root = std::string(internal) + "/extractor-root";
+        if (std::filesystem::exists(root + "/assets/extractor")) {
+            return root;
+        }
+    }
+#endif
+    return fallback;
+}
 
 void Extractor::ShowErrorBox(const char* title, const char* text) {
 #ifdef _WIN32
@@ -373,25 +435,29 @@ bool Extractor::GetRomPathFromBox() {
 #elif defined(__ANDROID__)
     JNIEnv* javaEnv = (JNIEnv*)SDL_AndroidGetJNIEnv();
     jobject javaObject = (jobject)SDL_AndroidGetActivity();
-    std::vector<std::string> selection;
-    openFilePickerFromC(javaEnv, javaObject);
-    while(fileDialogOpen){
-        //Do nothing until a file is chosen
-        SDL_Delay(250);
+    std::string selection;
+    while (true) {
+        SetSetupPhase(SetupPhase::NeedRom);
+        openFilePickerFromC(javaEnv, javaObject);
+        while (fileDialogOpen) {
+            // Java calls nativeHandleSelectedFile when the picker closes, including on cancel.
+            SDL_Delay(100);
+        }
+        const char* picked = javaRomPath.exchange(nullptr);
+        selection = picked != nullptr ? picked : "";
+        if (picked != nullptr) {
+            free((void*)picked);
+        }
+        if (!selection.empty()) {
+            break;
+        }
+        if (ShowYesNoBox("No ROM selected", "You need an Ocarina of Time ROM to continue.\n\nChoose a ROM file?") !=
+            IDYES) {
+            return false;
+        }
     }
-    SDL_Log("%s",javaRomPath);
-    selection.push_back(javaRomPath);
-
-    if (selection.empty()) {
-        return false;
-    }
-
-    mCurrentRomPath = selection[0];
-
-    if (javaRomPath) {
-        free((void*)javaRomPath);
-        javaRomPath = NULL;
-    }
+    SDL_Log("Selected ROM: %s", selection.c_str());
+    mCurrentRomPath = selection;
 
 #else
     auto selection = pfd::open_file("Select a file", mSearchPath, { "N64 Roms", "*.z64 *.n64 *.v64" }).result();
@@ -540,6 +606,12 @@ bool Extractor::Run(std::string searchPath, RomSearchMode searchMode) {
     FilterRoms(roms, searchMode);
 
     if (roms.empty()) {
+#ifdef __ANDROID__
+        // The user just agreed to pick a ROM; go straight to the file picker instead of asking again.
+        if (!ManuallySearchForRomMatchingType(searchMode)) {
+            return false;
+        }
+#else
         int ret = ShowYesNoBox("No roms found", "No roms found. Look for one?");
 
         switch (ret) {
@@ -555,6 +627,7 @@ bool Extractor::Run(std::string searchPath, RomSearchMode searchMode) {
                 UNREACHABLE;
                 break;
         }
+#endif
     }
 
     for (const auto& rom : roms) {
@@ -667,7 +740,8 @@ std::string Extractor::Mkdtemp() {
 #ifndef __ANDROID__
     std::string temp_dir = std::filesystem::temp_directory_path().string();
 #else
-    std::string temp_dir = SDL_AndroidGetExternalStoragePath();
+    // App-internal storage: fast, and unlike shared storage it allows symlinks.
+    std::string temp_dir = SDL_AndroidGetInternalStoragePath();
 #endif
     // create 6 random alphanumeric characters
     static const char charset[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -703,9 +777,21 @@ bool Extractor::CallZapd(std::string installPath, std::string exportdir) {
     // Work this out in the temporary folder
     std::string tempdir = Mkdtemp();
     std::string curdir = std::filesystem::current_path().string();
-#if defined(_WIN32) || defined(__ANDROID__)
+#if defined(_WIN32)
     std::filesystem::copy(installPath + "/assets", tempdir + "/assets",
                           std::filesystem::copy_options::recursive | std::filesystem::copy_options::update_existing);
+#elif defined(__ANDROID__)
+    // Previously this copied all ~7,700 extractor XMLs a second time. The temp dir now lives in
+    // internal storage, so a symlink works (as on Linux), and falls back to a copy if it fails.
+    {
+        std::error_code ec;
+        std::filesystem::create_directory_symlink(installPath + "/assets", tempdir + "/assets", ec);
+        if (ec) {
+            std::filesystem::copy(installPath + "/assets", tempdir + "/assets",
+                                  std::filesystem::copy_options::recursive |
+                                      std::filesystem::copy_options::update_existing);
+        }
+    }
 #else
     std::filesystem::create_symlink(installPath + "/assets", tempdir + "/assets");
 #endif
@@ -743,6 +829,22 @@ bool Extractor::CallZapd(std::string installPath, std::string exportdir) {
     // extraction.
     ShowWindow(cmdWindow, SW_SHOW);
     SetWindowPos(cmdWindow, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+#elif defined(__ANDROID__)
+    // The Android setup screen shows live progress instead of a blocking dialog.
+    {
+        int fileCount = 0;
+        std::error_code ec;
+        for (auto it = std::filesystem::recursive_directory_iterator(xmlPath, ec);
+             !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
+            std::error_code dirEc;
+            if (!it->is_directory(dirEc)) {
+                fileCount++;
+            }
+        }
+        sExtractTotalFiles = fileCount;
+        sExtractWorkersStarted = false;
+        SetSetupPhase(SetupPhase::Extracting);
+    }
 #else
     // Show extraction in background message until linux/mac can have visual progress
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Extracting",
@@ -758,11 +860,23 @@ bool Extractor::CallZapd(std::string installPath, std::string exportdir) {
     ShowWindow(cmdWindow, SW_HIDE);
 #endif
 
+    SetSetupPhase(SetupPhase::Saving);
+#ifdef __ANDROID__
+    // Write to a temp name first so an interrupted copy never leaves a truncated OTR behind.
+    {
+        std::string finalPath = exportdir + "/" + otrFile;
+        std::string partialPath = finalPath + ".partial";
+        std::filesystem::copy(otrFile, partialPath, std::filesystem::copy_options::overwrite_existing);
+        std::filesystem::rename(partialPath, finalPath);
+    }
+#else
     std::filesystem::copy(otrFile, exportdir + "/" + otrFile, std::filesystem::copy_options::overwrite_existing);
+#endif
 
     // Go back to where this game was executed from
     std::filesystem::current_path(curdir);
     std::filesystem::remove_all(tempdir);
 
+    SetSetupPhase(SetupPhase::ExtractDone);
     return 0;
 }

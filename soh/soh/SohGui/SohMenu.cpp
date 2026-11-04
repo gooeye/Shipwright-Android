@@ -88,7 +88,14 @@ void SohMenu::InitElement() {
 #ifdef ENABLE_REMOTE_CONTROL
     AddMenuNetwork();
 #endif
+#ifdef __ANDROID__
+    // Developer tools are clutter for most phone players; they can be turned back on.
+    if (CVarGetInteger(CVAR_SETTING("Mobile.ShowDevMenus"), 0)) {
+        AddMenuDevTools();
+    }
+#else
     AddMenuDevTools();
+#endif
 
     if (CVarGetInteger(CVAR_SETTING("Menu.SidebarSearch"), 0)) {
         InsertSidebarSearch();

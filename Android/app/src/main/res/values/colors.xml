@@ -1,6 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#3F51B5</color>
-    <color name="colorPrimaryDark">#303F9F</color>
-    <color name="colorAccent">#FF4081</color>
+    <color name="colorPrimary">#E9B949</color>
+    <color name="colorPrimaryDark">#0B0F14</color>
+    <color name="colorAccent">#E9B949</color>
+
+    <!-- Setup screen and dialogs -->
+    <color name="setup_bg_top">#0B0F14</color>
+    <color name="setup_bg_bottom">#131C27</color>
+    <color name="setup_card">#171F2A</color>
+    <color name="setup_card_stroke">#1FFFFFFF</color>
+    <color name="setup_text_primary">#F2F4F7</color>
+    <color name="setup_text_secondary">#9AA4B2</color>
+    <color name="setup_accent">#E9B949</color>
+    <color name="setup_accent_dim">#33E9B949</color>
+    <color name="setup_on_accent">#1A1407</color>
+    <color name="setup_success">#4ADE80</color>
+    <color name="setup_error">#F87171</color>
+    <color name="setup_track">#1FFFFFFF</color>
+    <color name="setup_step_idle">#2A3442</color>
+
+    <!-- Touch controls -->
+    <color name="hint_bg">#E6171F2A</color>
+    <color name="pad_fill">#38101722</color>
+    <color name="pad_stroke">#59FFFFFF</color>
+    <color name="pad_label">#D9FFFFFF</color>
+    <color name="pad_pressed_fill">#8CFFFFFF</color>
+    <color name="pad_a_fill">#4D3D7BFF</color>
+    <color name="pad_a_pressed">#E63D7BFF</color>
+    <color name="pad_b_fill">#4D2EB872</color>
+    <color name="pad_b_pressed">#E62EB872</color>
+    <color name="pad_c_pressed">#B3FFD23F</color>
+    <color name="pad_z_pressed">#B3B0B8C4</color>
 </resources>

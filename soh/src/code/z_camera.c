@@ -37,22 +37,22 @@ s32 Camera_UpdateWater(Camera* camera);
 
 #include "z_camera_data.inc"
 
-#ifdef __ANDROID__
-#include "jni.h"
-
-float touchCameraYaw=0;
-float touchCameraPitch=0;
-
-extern void JNICALL Java_com_dishii_soh_MainActivity_setCameraState(JNIEnv *env, jobject jobj, jint axis, jfloat value) {
-    switch(axis){
-        case 0:
-            touchCameraYaw=value;
-            break;
-        case 1:
-            touchCameraPitch=value;
-            break;
-    }
+// Free Look camera (manual camera control with the right stick or mouse). Touch dragging on
+// Android has its own camera handling, see Camera_TouchTurn.
+s32 Camera_FreeLookEnabled(void) {
+    return CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0);
 }
+
+#ifdef __ANDROID__
+// Drag-to-look from the touch screen, see soh/Enhancements/controls/MobileBridge.cpp
+void TouchLook_ApplyThirdPerson(f32* newCamX, f32* newCamY);
+s32 TouchLook_FramesSinceDrag(void);
+void TouchLook_GetFrameDelta(f32* dxDp, f32* dyDp);
+// Camera debug readout (Settings > Controls > Show Camera Debug Info), drawn in SohGui/Menu.cpp
+const char* gTouchDbgCameraFunc = "";
+s32 gTouchDbgManualChecks = 0;
+s32 gTouchDbgManualCamera = 0;
+f32 gTouchDbgCamYaw = 0.0f;
 #endif
 
 /*===============================================================*/
@@ -1435,13 +1435,79 @@ s32 Camera_Noop(Camera* camera) {
     return true;
 }
 
+#ifdef __ANDROID__
+// Touch camera. The normal camera recomputes its angle every frame (swinging behind Link as he
+// moves and easing the tilt back), so a drag can't just nudge it. Instead, once you drag, the
+// camera holds the angle you dragged it to; it still follows Link's position and stays out of
+// walls. With "Camera follows movement" on (default), walking hands control back to the normal
+// camera; with it off the angle is always held, so walking never turns the view.
+static bool sTouchHold = false;
+static s16 sTouchHoldYaw;
+static s16 sTouchHoldPitch;
+
+static void Camera_TouchTurn(Camera* camera) {
+    if (camera != camera->play->cameraPtrs[camera->play->activeCamera]) {
+        return;
+    }
+    if (!CVarGetInteger(CVAR_SETTING("Mobile.DragToLook"), 1) || camera->play->manualCamera ||
+        camera->mode != CAM_MODE_NORMAL || camera->play->csCtx.state != CS_STATE_IDLE || camera->player == NULL) {
+        sTouchHold = false; // targeting, first person, cutscenes etc. start from the normal camera
+        return;
+    }
+
+    f32 dx, dy;
+    TouchLook_GetFrameDelta(&dx, &dy);
+    bool dragging = dx != 0.0f || dy != 0.0f;
+    bool follow = CVarGetInteger(CVAR_SETTING("Mobile.CameraFollowsMovement"), 1);
+    Input* input = &D_8015BD7C->state.input[0];
+    bool walking = ABS(input->rel.stick_x) > 8 || ABS(input->rel.stick_y) > 8;
+
+    if (follow && sTouchHold && walking && !dragging && TouchLook_FramesSinceDrag() > 10) {
+        sTouchHold = false;
+    }
+    if (!sTouchHold && (dragging || !follow)) {
+        VecSph start;
+        OLib_Vec3fDiffToVecSphGeo(&start, &camera->at, &camera->eyeNext);
+        sTouchHold = true;
+        sTouchHoldYaw = start.yaw;
+        sTouchHoldPitch = start.pitch;
+    }
+    if (!sTouchHold) {
+        return;
+    }
+
+    if (dragging) {
+        bool invertX = CVarGetInteger(CVAR_SETTING("FreeLook.InvertXAxis"), 0) !=
+                       CVarGetInteger(CVAR_ENHANCEMENT("MirroredWorld"), 0);
+        bool invertY = CVarGetInteger(CVAR_SETTING("FreeLook.InvertYAxis"), 1);
+        sTouchHoldYaw += (s16)(-dx * 100.0f * CVarGetFloat(CVAR_SETTING("FreeLook.CameraSensitivity.X"), 1.0f) *
+                               (invertX ? -1 : 1));
+        s32 pitch = sTouchHoldPitch + (s32)(dy * 100.0f *
+                                            CVarGetFloat(CVAR_SETTING("FreeLook.CameraSensitivity.Y"), 1.0f) *
+                                            (invertY ? 1 : -1));
+        sTouchHoldPitch = (s16)CLAMP(pitch, -0x228C, 0x32A4);
+    }
+
+    // Keep the distance the normal camera chose, at the held angle.
+    VecSph geo;
+    OLib_Vec3fDiffToVecSphGeo(&geo, &camera->at, &camera->eyeNext);
+    geo.yaw = sTouchHoldYaw;
+    geo.pitch = sTouchHoldPitch;
+    Camera_Vec3fVecSphGeoAdd(&camera->eyeNext, &camera->at, &geo);
+    CamColChk col;
+    col.pos = camera->eyeNext;
+    Camera_BGCheckInfo(camera, &camera->at, &col);
+    camera->eye = col.pos;
+    gTouchDbgCamYaw = sTouchHoldYaw;
+}
+#endif
+
 s32 SetCameraManual(Camera* camera) {
     f32 newCamX = -D_8015BD7C->state.input[0].cur.right_stick_x * 10.0f;
     f32 newCamY = D_8015BD7C->state.input[0].cur.right_stick_y * 10.0f;
 
 #ifdef __ANDROID__
-    newCamX += -touchCameraYaw*10.0f;
-    newCamY += touchCameraPitch*10.0f;
+    TouchLook_ApplyThirdPerson(&newCamX, &newCamY);
 #endif
 
     Mouse_HandleThirdPerson(&newCamX, &newCamY);
@@ -1455,6 +1521,14 @@ s32 SetCameraManual(Camera* camera) {
         camera->play->camX = eyeAdjustment.yaw;
         camera->play->camY = eyeAdjustment.pitch;
     }
+
+#ifdef __ANDROID__
+    gTouchDbgManualChecks++;
+    gTouchDbgManualCamera = camera->play->manualCamera;
+    if (camera->play->manualCamera) {
+        gTouchDbgCamYaw = camera->play->camX;
+    }
+#endif
 
     if (camera->play->manualCamera) {
         return 1;
@@ -1513,8 +1587,7 @@ s32 Camera_Free(Camera* camera) {
     f32 newCamY = +D_8015BD7C->state.input[0].cur.right_stick_y * 10.0f;
 
 #ifdef __ANDROID__
-    newCamX += -touchCameraYaw*10.0f;
-    newCamY += touchCameraPitch*10.0f;
+    TouchLook_ApplyThirdPerson(&newCamX, &newCamY);
 #endif
 
     /* Disable mouse movement when holding down the shield */
@@ -1565,7 +1638,7 @@ s32 Camera_Free(Camera* camera) {
 }
 
 s32 Camera_Normal1(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -1811,7 +1884,7 @@ s32 Camera_Normal1(Camera* camera) {
 }
 
 s32 Camera_Normal2(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -1982,7 +2055,7 @@ s32 Camera_Normal2(Camera* camera) {
 
 // riding epona
 s32 Camera_Normal3(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -2346,7 +2419,7 @@ s32 Camera_Parallel0(Camera* camera) {
  * Generic jump, jumping off ledges
  */
 s32 Camera_Jump1(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -2496,7 +2569,7 @@ s32 Camera_Jump1(Camera* camera) {
 
 // Climbing ladders/vines
 s32 Camera_Jump2(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -2683,7 +2756,7 @@ s32 Camera_Jump2(Camera* camera) {
 
 // swimming
 s32 Camera_Jump3(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -3145,7 +3218,7 @@ s32 Camera_Battle3(Camera* camera) {
  * setting value.
  */
 s32 Camera_Battle4(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -4680,7 +4753,7 @@ s32 Camera_Data4(Camera* camera) {
  * Hanging off of a ledge
  */
 s32 Camera_Unique1(Camera* camera) {
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
+    if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
         return 1;
     }
@@ -7624,7 +7697,15 @@ Vec3s Camera_Update(Camera* camera) {
     }
 
     if (sOOBTimer < 200) {
+#ifdef __ANDROID__
+        if (camera == camera->play->cameraPtrs[camera->play->activeCamera]) {
+            gTouchDbgCameraFunc = sCameraFunctionNames[sCameraSettings[camera->setting].cameraModes[camera->mode].funcIdx];
+        }
+#endif
         sCameraFunctions[sCameraSettings[camera->setting].cameraModes[camera->mode].funcIdx](camera);
+#ifdef __ANDROID__
+        Camera_TouchTurn(camera);
+#endif
     } else if (camera->player != NULL) {
         OLib_Vec3fDiffToVecSphGeo(&eyeAtAngle, &camera->at, &camera->eye);
         Camera_CalcAtDefault(camera, &eyeAtAngle, 0.0f, 0);
@@ -7933,7 +8014,7 @@ s32 Camera_ChangeModeFlags(Camera* camera, s16 mode, u8 flags) {
         }
 
         // Clear free look if an action is performed that would move the camera (targeting, first person, talking)
-        if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1 &&
+        if (Camera_FreeLookEnabled() && SetCameraManual(camera) == 1 &&
             ((mode >= CAM_MODE_TARGET && mode <= CAM_MODE_BATTLE) ||
              (mode >= CAM_MODE_FIRSTPERSON && mode <= CAM_MODE_CLIMBZ) || mode == CAM_MODE_HANGZ ||
              mode == CAM_MODE_FOLLOWBOOMERANG)) {

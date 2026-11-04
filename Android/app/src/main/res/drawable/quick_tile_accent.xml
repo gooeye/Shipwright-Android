@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Highlighted action row in the pause menu -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/setup_accent_dim">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#2A2618" />
+            <stroke android:width="1.5dp" android:color="@color/setup_accent" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+</ripple>

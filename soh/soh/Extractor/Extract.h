@@ -19,6 +19,20 @@ static constexpr size_t MB32 = 32 * MB_BASE;
 static constexpr size_t MB54 = 54 * MB_BASE;
 static constexpr size_t MB64 = 64 * MB_BASE;
 
+// Setup progress phases reported to the Android setup screen (polled from Java via
+// MainActivity.nativeGetSetupState). Keep in sync with SetupOverlay.java.
+enum class SetupPhase : int {
+    Boot = 0,
+    NeedRom = 1,
+    ImportingRom = 2, // set by Java while it copies the picked ROM
+    ReadingRom = 3,
+    Extracting = 4,
+    Packing = 5,
+    Saving = 6,
+    ExtractDone = 7,
+    Ready = 100,
+};
+
 enum class RomSearchMode {
     Both = 0,
     Vanilla = 1,
@@ -58,6 +72,12 @@ class Extractor {
     static int ShowYesNoBox(const char* title, const char* text);
     static void ShowErrorBox(const char* title, const char* text);
     bool IsMasterQuest() const;
+
+    // No-op outside Android. Lets the Android setup screen show what the native side is doing.
+    static void SetSetupPhase(SetupPhase phase);
+    // On Android, prefers the extractor assets unpacked into app-internal storage
+    // (fast, written by the setup screen); otherwise returns fallback unchanged.
+    static std::string ResolveInstallPath(const std::string& fallback);
 
     bool Run(std::string searchPath, RomSearchMode searchMode = RomSearchMode::Both);
     bool CallZapd(std::string installPath, std::string exportdir);

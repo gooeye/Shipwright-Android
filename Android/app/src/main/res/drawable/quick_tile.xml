@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Secondary action tile in the pause menu -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/setup_accent_dim">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#222C3A" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+</ripple>

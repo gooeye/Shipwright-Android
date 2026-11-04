@@ -1,3 +1,81 @@
 <resources>
     <string name="app_name">Ship of Harkinian</string>
+
+    <string name="setup_subtitle">First-time setup</string>
+    <string name="setup_step_prepare">Prepare</string>
+    <string name="setup_step_rom">Your ROM</string>
+    <string name="setup_step_build">Build game data</string>
+
+    <string name="setup_permission_title">Storage access needed</string>
+    <string name="setup_permission_body">Saves, mods and game data live in the SOH folder on your phone\'s storage. Tap below, then turn on \"Allow access to manage all files\".</string>
+    <string name="setup_permission_action">Open settings</string>
+
+    <string name="setup_preparing">Unpacking extractor files</string>
+    <string name="setup_preparing_hint">This only happens once. Keep the app open until it finishes.</string>
+    <string name="setup_finishing">Finishing up</string>
+    <string name="setup_starting">Starting up</string>
+
+    <string name="setup_need_rom">Choose your Ocarina of Time ROM</string>
+    <string name="setup_need_rom_hint">Pick a .z64, .n64 or .v64 file you dumped yourself. Not sure if yours is supported? Check it at ship.equipment.</string>
+    <string name="setup_importing_rom">Importing your ROM</string>
+    <string name="setup_reading_rom">Reading your ROM</string>
+    <string name="setup_extracting">Building game data</string>
+    <string name="setup_extracting_hint">This takes a few minutes on a phone. Keep the app open and the screen on.</string>
+    <string name="setup_packing">Packing game archive</string>
+    <string name="setup_saving">Saving to storage</string>
+    <string name="setup_extract_done">Game data ready</string>
+    <string name="setup_ready">All set</string>
+
+    <string name="setup_error_title">Setup didn\'t finish</string>
+    <string name="setup_retry">Try again</string>
+    <string name="setup_rom_import_failed">Couldn\'t read that file. Try picking it again.</string>
+
+    <string name="quick_title">Paused</string>
+    <string name="quick_resume">Resume</string>
+    <string name="quick_states">Save states</string>
+    <string name="quick_slot">Slot %1$d</string>
+    <string name="quick_slot_empty">Empty</string>
+    <string name="quick_slot_saved">Saved</string>
+    <string name="quick_save_state">Save state</string>
+    <string name="quick_load_state">Load state</string>
+    <string name="quick_states_note">Snapshots of this moment. They last until the app closes and only load in the room they were saved in.</string>
+    <string name="quick_controls">Controls</string>
+    <string name="quick_on">On</string>
+    <string name="quick_off">Off</string>
+    <string name="toggle_camera_follow">Follow cam</string>
+    <string name="toggle_move_first_person">Walk &amp; aim</string>
+    <string name="toggle_vibration">Vibration</string>
+    <string name="quick_settings">Game settings</string>
+    <string name="quick_settings_sub">Graphics, sound, enhancements, controller mapping</string>
+    <string name="quick_edit_controls">Customize touch controls</string>
+    <string name="quick_edit_controls_sub">Move, resize, hide or reassign the on-screen buttons</string>
+    <string name="quick_hide_controls">Hide touch controls</string>
+    <string name="quick_show_controls">Show touch controls</string>
+    <string name="quick_toggle_controls_sub">Handy when playing with a controller</string>
+
+    <string name="hint_first_run">Drag anywhere on the screen to look around. Tap ☰ to pause, save states or customize these buttons.</string>
+    <string name="gamepad_connected">Controller connected: touch controls hidden</string>
+    <string name="editor_hint">Tap a control to select it, then drag to move it or pinch to resize.</string>
+    <string name="editor_action">Does: %1$s</string>
+    <string name="editor_action_title">What this button does</string>
+    <string name="editor_size">Size %1$d%%</string>
+    <string name="editor_opacity">Opacity %1$d%%</string>
+    <string name="editor_hide">Hide</string>
+    <string name="editor_show">Show</string>
+    <string name="editor_reset">Reset</string>
+    <string name="editor_done">Done</string>
+    <string name="editor_hidden_suffix">%1$s (hidden)</string>
+
+    <string name="control_stick">Stick</string>
+    <string name="control_c">C buttons</string>
+    <string name="control_a">A button</string>
+    <string name="control_b">B button</string>
+    <string name="control_x">X button</string>
+    <string name="control_y">Y button</string>
+    <string name="control_l">L button</string>
+    <string name="control_r">R button</string>
+    <string name="control_z">Z button</string>
+    <string name="control_start">Start button</string>
+    <string name="control_menu">Menu button</string>
+    <string name="control_toggle">Show/hide button</string>
 </resources>

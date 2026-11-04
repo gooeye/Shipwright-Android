@@ -43,8 +43,10 @@ if [ ! -d "$PROJECT_PATH" ]; then
 fi
 
 # Run Container to build
+# The optional SOH_* signing variables (see Android/app/build.gradle) are passed through.
 docker run --network="host" --rm \
     --name $CONTAINER_NAME \
+    -e SOH_KEYSTORE_FILE -e SOH_KEYSTORE_PASSWORD -e SOH_KEY_ALIAS -e SOH_KEY_PASSWORD \
     -v "$PROJECT_PATH":/workspace \
     -w /workspace \
     $IMAGE_NAME \

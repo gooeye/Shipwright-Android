@@ -5,6 +5,10 @@
 #include "window/gui/GuiMenuBar.h"
 #include "window/gui/GuiElement.h"
 #include "SohModals.h"
+#include "TouchScroll.h"
+#ifdef __ANDROID__
+#include "port/mobile/MobileImpl.h"
+#endif
 #include <variant>
 #include <spdlog/fmt/fmt.h>
 #include "variables.h"
@@ -144,8 +148,16 @@ bool ModernMenuSidebarEntry(std::string label) {
     const ImGuiID sidebarId = window->GetID(std::string(label + "##Sidebar").c_str());
     ImVec2 labelSize = ImGui::CalcTextSize(label.c_str(), ImGui::FindRenderedTextEnd(label.c_str()), true);
     pos.y += style.FramePadding.y;
-    pos.x = window->WorkRect.GetCenter().x - labelSize.x / 2;
-    ImRect bb = { pos - style.FramePadding, pos + labelSize + style.FramePadding };
+    ImRect bb;
+    if (UIWidgets::ModernStyle()) {
+        // Full-width row with the label on the left, like a phone settings list.
+        pos.x = window->WorkRect.Min.x + style.FramePadding.x;
+        bb = { ImVec2(window->WorkRect.Min.x, pos.y - style.FramePadding.y),
+               ImVec2(window->WorkRect.Max.x, pos.y + labelSize.y + style.FramePadding.y) };
+    } else {
+        pos.x = window->WorkRect.GetCenter().x - labelSize.x / 2;
+        bb = { pos - style.FramePadding, pos + labelSize + style.FramePadding };
+    }
     ImGui::ItemSize(bb, style.FramePadding.y);
     ImGui::ItemAdd(bb, sidebarId);
     bool hovered, held;
@@ -153,11 +165,11 @@ bool ModernMenuSidebarEntry(std::string label) {
     if (pressed) {
         ImGui::MarkItemEdited(sidebarId);
     }
-    window->DrawList->AddRectFilled(pos - style.FramePadding, pos + labelSize + style.FramePadding,
+    window->DrawList->AddRectFilled(bb.Min, bb.Max,
                                     ImGui::GetColorU32((held && hovered) ? ImGuiCol_ButtonActive
                                                        : hovered         ? ImGuiCol_ButtonHovered
                                                                          : ImGuiCol_Button),
-                                    3.0f);
+                                    UIWidgets::WidgetRounding() * UIWidgets::UiScale());
     UIWidgets::RenderText(pos, label.c_str(), ImGui::FindRenderedTextEnd(label.c_str()), true);
     return pressed;
 }
@@ -178,7 +190,7 @@ bool ModernMenuHeaderEntry(std::string label) {
                                     ImGui::GetColorU32((held && hovered) ? ImGuiCol_ButtonActive
                                                        : hovered         ? ImGuiCol_ButtonHovered
                                                                          : ImGuiCol_Button),
-                                    3.0f);
+                                    UIWidgets::WidgetRounding() * UIWidgets::UiScale());
     pos += style.FramePadding;
     UIWidgets::RenderText(pos, label.c_str(), ImGui::FindRenderedTextEnd(label.c_str()), true);
     return pressed;
@@ -485,7 +497,25 @@ void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors me
     }
 }
 
+#ifdef __ANDROID__
+extern "C" void TouchLook_DrawDebug();
+#endif
+
 void Menu::Draw() {
+    TouchScroll::Update();
+#ifdef __ANDROID__
+    TouchLook_DrawDebug();
+    // The touch controls hide while the menu is open, however it was opened or closed.
+    static int sNotifiedVisible = -1;
+    if ((int)IsVisible() != sNotifiedVisible) {
+        sNotifiedVisible = IsVisible();
+        if (sNotifiedVisible) {
+            Ship::Mobile::DisableTouchArea();
+        } else {
+            Ship::Mobile::EnableTouchArea();
+        }
+    }
+#endif
     if (!IsVisible()) {
         return;
     }
@@ -529,8 +559,9 @@ void Menu::DrawElement() {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     }
 
-    ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                          ImVec4(0, 0, 0, CVarGetFloat(CVAR_SETTING("Menu.BackgroundOpacity"), 0.85f)));
+    ImVec4 menuBg = UIWidgets::ModernStyle() ? ImVec4(0.06f, 0.07f, 0.09f, 0) : ImVec4(0, 0, 0, 0);
+    menuBg.w = CVarGetFloat(CVAR_SETTING("Menu.BackgroundOpacity"), UIWidgets::ModernStyle() ? 0.94f : 0.85f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, menuBg);
 
     if (!ImGui::Begin("Main Menu", NULL, windowFlags)) {
         if (!popout) {
@@ -563,17 +594,22 @@ void Menu::DrawElement() {
     windowHeight = window->WorkRect.GetHeight();
     windowWidth = window->WorkRect.GetWidth();
 
+    // Layout sizes below are in unscaled units; `scale` turns them into pixels.
+    const float scale = UIWidgets::UiScale();
     ImGui::PushFont(OTRGlobals::Instance->fontStandardLargest);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10.0f, 8.0f));
+    UIWidgets::PushStyleVarScaled(ImGuiStyleVar_FramePadding, ImVec2(10.0f, 8.0f));
     const char* headerCvar = CVAR_SETTING("Menu.ActiveHeader");
     std::string headerIndex = CVarGetString(headerCvar, "Settings");
+    if (!menuEntries.contains(headerIndex)) {
+        headerIndex = menuOrder.at(0); // the saved tab may be a menu that's hidden on this platform
+    }
     ImVec2 pos = window->DC.CursorPos;
     float centerX = pos.x + windowWidth / 2 - (style.ItemSpacing.x * (menuEntries.size() + 1));
     std::vector<ImVec2> headerSizes;
-    float headerWidth = style.ItemSpacing.x + 20;
+    float headerWidth = style.ItemSpacing.x + 20 * scale;
     bool headerSearch = !CVarGetInteger(CVAR_SETTING("Menu.SidebarSearch"), 0);
     if (headerSearch) {
-        headerWidth += 200.0f + style.ItemSpacing.x + style.FramePadding.x;
+        headerWidth += 200.0f * scale + style.ItemSpacing.x + style.FramePadding.x;
     }
     for (auto& label : menuOrder) {
         ImVec2 size = ImGui::CalcTextSize(label.c_str());
@@ -588,10 +624,10 @@ void Menu::DrawElement() {
     // 5% of screen width/height padding on both sides above those resolutions.
     // Menu width will never exceed a 16:9 aspect ratio.
     ImVec2 menuSize = { windowWidth, windowHeight };
-    if (windowWidth > 1280) {
+    if (windowWidth > 1280 * scale) {
         menuSize.x = std::fminf(windowWidth * 0.9f, (windowHeight * 1.77f));
     }
-    if (windowHeight > 800) {
+    if (windowHeight > 800 * scale) {
         menuSize.y = windowHeight * 0.9f;
     }
 
@@ -659,11 +695,11 @@ void Menu::DrawElement() {
         auto color = UIWidgets::ColorValues.at(menuThemeIndex);
         color.w = 0.2f;
         ImGui::PushStyleColor(ImGuiCol_FrameBg, color);
-        menuSearch.Draw("##search", 200.0f);
+        menuSearch.Draw("##search", 200.0f * scale);
         menuSearchText = menuSearch.InputBuf;
         menuSearchText.erase(std::remove(menuSearchText.begin(), menuSearchText.end(), ' '), menuSearchText.end());
         if (menuSearchText.length() < 1) {
-            ImGui::SameLine(headerWidth - 200.0f + style.ItemSpacing.x);
+            ImGui::SameLine(headerWidth - 200.0f * scale + style.ItemSpacing.x);
             ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 0.4f), "Search...");
         }
         ImGui::PopStyleColor();
@@ -695,7 +731,7 @@ void Menu::DrawElement() {
     options2.tooltip = "Reset"
 #ifdef __APPLE__
                        " (Command-R)"
-#elif !defined(__SWITCH__) && !defined(__WIIU__)
+#elif !defined(__SWITCH__) && !defined(__WIIU__) && !defined(__ANDROID__)
                        " (Ctrl+R)"
 #else
                        ""
@@ -709,7 +745,11 @@ void Menu::DrawElement() {
     ImGui::SameLine();
     UIWidgets::ButtonOptions options = {};
     options.size = UIWidgets::Sizes::Inline;
+#ifdef __ANDROID__
+    options.tooltip = "Close Menu";
+#else
     options.tooltip = "Close Menu (Esc)";
+#endif
     if (UIWidgets::Button(ICON_FA_TIMES_CIRCLE, options)) {
         ToggleVisibility();
 
@@ -725,16 +765,18 @@ void Menu::DrawElement() {
 
     pos.y += headerHeight + style.ItemSpacing.y;
     pos.x = centerX - menuSize.x / 2 + (style.ItemSpacing.x * (menuEntries.size() + 1));
-    window->DrawList->AddRectFilled(pos, pos + ImVec2{ menuSize.x, 4 }, ImGui::GetColorU32({ 255, 255, 255, 255 }),
-                                    true, style.WindowRounding);
+    const float dividerSize = UIWidgets::ModernStyle() ? std::fmaxf(1.0f, scale) : 4.0f;
+    const ImU32 dividerColor = UIWidgets::ModernStyle() ? IM_COL32(255, 255, 255, 28) : IM_COL32(255, 255, 255, 255);
+    window->DrawList->AddRectFilled(pos, pos + ImVec2{ menuSize.x, dividerSize }, dividerColor, true,
+                                    style.WindowRounding);
     pos.y += style.ItemSpacing.y;
-    float sectionHeight = menuSize.y - headerHeight - 4 - style.ItemSpacing.y * 2;
+    float sectionHeight = menuSize.y - headerHeight - dividerSize - style.ItemSpacing.y * 2;
     float columnHeight = sectionHeight - style.ItemSpacing.y * 4;
     ImGui::SetNextWindowPos(pos + style.ItemSpacing * 2);
 
     // Increase sidebar width on larger screens to accomodate people scaling their menus.
-    float sidebarWidth = 200 - style.ItemSpacing.x;
-    if (menuSize.x > 1600) {
+    float sidebarWidth = 200 * scale - style.ItemSpacing.x;
+    if (menuSize.x > 1600 * scale) {
         sidebarWidth = menuSize.x * 0.15f;
     }
 
@@ -775,16 +817,18 @@ void Menu::DrawElement() {
     ImGui::PopFont();
 
     pos = ImVec2{ sectionCenterX + (sidebarWidth / 2), topY } + style.ItemSpacing * 2;
-    window->DrawList->AddRectFilled(pos, pos + ImVec2{ 4, sectionHeight - style.FramePadding.y * 2 },
-                                    ImGui::GetColorU32({ 255, 255, 255, 255 }), true, style.WindowRounding);
-    pos.x += 4 + style.ItemSpacing.x;
+    window->DrawList->AddRectFilled(pos, pos + ImVec2{ dividerSize, sectionHeight - style.FramePadding.y * 2 },
+                                    dividerColor, true, style.WindowRounding);
+    pos.x += dividerSize + style.ItemSpacing.x;
     ImGui::SetNextWindowPos(pos + style.ItemSpacing);
-    float sectionWidth = menuSize.x - sidebarWidth - 4 - style.ItemSpacing.x * 4;
+    float sectionWidth = menuSize.x - sidebarWidth - dividerSize - style.ItemSpacing.x * 4;
     std::string sectionMenuId = sectionIndex + " Settings";
     int columns = sidebar->at(sectionIndex).columnCount;
     size_t columnFuncs = sidebar->at(sectionIndex).columnWidgets.size();
-    if (windowWidth < 800) {
+    if (windowWidth < 800 * scale) {
         columns = 1;
+    } else if (windowWidth < 1400 * scale && columns > 2) {
+        columns = 2; // phones: two wide columns read better than three narrow ones
     }
     float columnWidth = (sectionWidth - style.ItemSpacing.x * columns) / columns;
     bool useColumns = columns > 1;
@@ -819,22 +863,25 @@ void Menu::DrawElement() {
                 }
             }
         }
-        for (int i = 0; i < columnFuncs; i++) {
-            std::string sectionId = fmt::format("{} Column {}", sectionMenuId, i);
+        // When there are fewer display columns than widget columns, display column `col` holds
+        // widget columns col, col + columns, ... so nothing ends up off screen.
+        int displayColumns = useColumns ? columns : 1;
+        for (int col = 0; col < displayColumns; col++) {
+            std::string sectionId = fmt::format("{} Column {}", sectionMenuId, col);
             if (useColumns) {
                 ImGui::SetNextWindowSizeConstraints({ columnWidth, 0 }, { columnWidth, columnHeight });
                 ImGui::BeginChild(sectionId.c_str(), { columnWidth, windowHeight * 4 }, ImGuiChildFlags_AutoResizeY,
                                   ImGuiWindowFlags_NoTitleBar);
             }
-            // for (auto& entryName : sidebar->at(sectionIndex).sidebarOrder) {
-            for (auto& entry : sidebar->at(sectionIndex).columnWidgets.at(i)) {
-                MenuDrawItem(entry, 90 / sidebar->at(sectionIndex).columnCount, menuThemeIndex);
+            for (int i = col; i < columnFuncs; i += displayColumns) {
+                for (auto& entry : sidebar->at(sectionIndex).columnWidgets.at(i)) {
+                    MenuDrawItem(entry, 90 / sidebar->at(sectionIndex).columnCount, menuThemeIndex);
+                }
             }
-            //}
             if (useColumns) {
                 ImGui::EndChild();
             }
-            if (i < columns - 1) {
+            if (col < displayColumns - 1) {
                 ImGui::SameLine();
             }
         }

@@ -20,8 +20,24 @@ android {
         }
         minSdkVersion 24
         targetSdkVersion 33
-        versionCode 8
-        versionName "9.0.2"
+        // Minutes since 2026-01-01 at build time, so every new build installs as an update
+        // (installers treat an APK with the same version code as already installed).
+        versionCode 100000 + (int) ((System.currentTimeMillis().intdiv(1000L) - 1767225600L).intdiv(60L))
+        versionName "9.0.2-ux3"
+    }
+    signingConfigs {
+        // Optional fixed release key, so each new build installs over the previous one. Set
+        // SOH_KEYSTORE_FILE, SOH_KEYSTORE_PASSWORD, SOH_KEY_ALIAS and SOH_KEY_PASSWORD (CI reads
+        // them from repository secrets). Without them, builds use the per-machine debug key.
+        release {
+            def keystore = System.getenv("SOH_KEYSTORE_FILE")
+            if (keystore != null && !keystore.isEmpty() && file(keystore).exists()) {
+                storeFile file(keystore)
+                storePassword System.getenv("SOH_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("SOH_KEY_ALIAS")
+                keyPassword System.getenv("SOH_KEY_PASSWORD")
+            }
+        }
     }
     buildTypes {
         debug {
@@ -37,7 +53,7 @@ android {
             minifyEnabled false
             debuggable false
             jniDebuggable false
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release.storeFile != null ? signingConfigs.release : signingConfigs.debug
             externalNativeBuild {
                 cmake {
                     arguments "-DSDL_SHARED=ON", "-DANDROID_STL=c++_static", "-DHAVE_LD_VERSION_SCRIPT=OFF",'-DUSE_OPENGLES=ON'
@@ -88,6 +104,53 @@ android {
             }
         }
     }
+}
+
+// The extractor needs ~7,700 small XML files on disk. Shipping them as loose APK
+// assets made first-run setup copy them one by one (several minutes, no feedback).
+// Pack them into a single zip plus a manifest so setup can stream-extract them
+// with a real progress bar.
+abstract class PackExtractorAssets extends DefaultTask {
+    @InputDirectory
+    abstract DirectoryProperty getSourceDir()
+
+    @OutputDirectory
+    abstract DirectoryProperty getOutputDir()
+
+    @TaskAction
+    void pack() {
+        File src = sourceDir.get().asFile
+        File out = outputDir.get().asFile
+        out.mkdirs()
+        File zipFile = new File(out, "extractor.zip")
+        List<File> files = []
+        src.eachFileRecurse(groovy.io.FileType.FILES) { files << it }
+        files.sort { it.path }
+        long totalBytes = 0
+        new java.util.zip.ZipOutputStream(new FileOutputStream(zipFile)).withCloseable { zos ->
+            files.each { File f ->
+                String rel = src.toPath().relativize(f.toPath()).toString().replace(File.separatorChar, (char) '/')
+                def entry = new java.util.zip.ZipEntry("assets/" + rel)
+                entry.time = 0L
+                zos.putNextEntry(entry)
+                f.withInputStream { zos << it }
+                zos.closeEntry()
+                totalBytes += f.length()
+            }
+        }
+        new File(out, "extractor_manifest.txt").text = "${files.size()} ${totalBytes}\n"
+    }
+}
+
+def packExtractorAssets = tasks.register("packExtractorAssets", PackExtractorAssets) {
+    sourceDir = layout.projectDirectory.dir("src/main/extractor-assets")
+    outputDir = layout.buildDirectory.dir("generated/extractorAssets")
+}
+
+androidComponents {
+    onVariants(selector().all(), { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(packExtractorAssets, PackExtractorAssets::getOutputDir)
+    })
 }
 
 dependencies {
