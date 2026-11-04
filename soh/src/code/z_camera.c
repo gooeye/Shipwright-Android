@@ -52,6 +52,7 @@ s32 Camera_FreeLookEnabled(void) {
 // Drag-to-look from the touch screen, see soh/Enhancements/controls/MobileBridge.cpp
 void TouchLook_ApplyThirdPerson(f32* newCamX, f32* newCamY);
 s32 TouchLook_FramesSinceDrag(void);
+void TouchLook_GetFrameDelta(f32* dxDp, f32* dyDp);
 // Camera debug readout (Settings > Controls > Show Camera Debug Info), drawn in SohGui/Menu.cpp
 const char* gTouchDbgCameraFunc = "";
 s32 gTouchDbgManualChecks = 0;
@@ -1439,6 +1440,42 @@ s32 Camera_Noop(Camera* camera) {
     return true;
 }
 
+#ifdef __ANDROID__
+// Dragging the screen with "Camera follows movement" on: turn the normal camera around Link by
+// rotating where it is (and where it's heading) about the point it looks at. The normal camera
+// carries on from there, so walking still swings it behind Link the usual way.
+// With the option off, dragging goes through the Free Look camera instead (see SetCameraManual).
+static void Camera_TouchTurn(Camera* camera) {
+    f32 dx, dy;
+    TouchLook_GetFrameDelta(&dx, &dy);
+    if ((dx == 0.0f && dy == 0.0f) || !CVarGetInteger(CVAR_SETTING("Mobile.DragToLook"), 1) ||
+        !CVarGetInteger(CVAR_SETTING("Mobile.CameraFollowsMovement"), 1) || camera->play->manualCamera ||
+        camera != camera->play->cameraPtrs[camera->play->activeCamera] || camera->mode != CAM_MODE_NORMAL ||
+        camera->play->csCtx.state != CS_STATE_IDLE) {
+        return;
+    }
+    bool invertX = CVarGetInteger(CVAR_SETTING("FreeLook.InvertXAxis"), 0) !=
+                   CVarGetInteger(CVAR_ENHANCEMENT("MirroredWorld"), 0);
+    bool invertY = CVarGetInteger(CVAR_SETTING("FreeLook.InvertYAxis"), 1);
+    s16 yaw = (s16)(-dx * 100.0f * CVarGetFloat(CVAR_SETTING("FreeLook.CameraSensitivity.X"), 1.0f) *
+                    (invertX ? -1 : 1));
+    s16 pitch = (s16)(dy * 100.0f * CVarGetFloat(CVAR_SETTING("FreeLook.CameraSensitivity.Y"), 1.0f) *
+                      (invertY ? 1 : -1));
+
+    VecSph geo;
+    OLib_Vec3fDiffToVecSphGeo(&geo, &camera->at, &camera->eye);
+    geo.yaw += yaw;
+    geo.pitch = CLAMP(geo.pitch + pitch, -0x228C, 0x32A4);
+    Camera_Vec3fVecSphGeoAdd(&camera->eye, &camera->at, &geo);
+    gTouchDbgCamYaw = geo.yaw;
+
+    OLib_Vec3fDiffToVecSphGeo(&geo, &camera->at, &camera->eyeNext);
+    geo.yaw += yaw;
+    geo.pitch = CLAMP(geo.pitch + pitch, -0x228C, 0x32A4);
+    Camera_Vec3fVecSphGeoAdd(&camera->eyeNext, &camera->at, &geo);
+}
+#endif
+
 s32 SetCameraManual(Camera* camera) {
     f32 newCamX = -D_8015BD7C->state.input[0].cur.right_stick_x * 10.0f;
     f32 newCamY = D_8015BD7C->state.input[0].cur.right_stick_y * 10.0f;
@@ -1480,7 +1517,9 @@ s32 SetCameraManual(Camera* camera) {
         }
     }
     gTouchDbgManualCamera = camera->play->manualCamera;
-    gTouchDbgCamYaw = camera->play->camX;
+    if (camera->play->manualCamera) {
+        gTouchDbgCamYaw = camera->play->camX;
+    }
 #endif
 
     if (camera->play->manualCamera) {
@@ -7656,6 +7695,9 @@ Vec3s Camera_Update(Camera* camera) {
         }
 #endif
         sCameraFunctions[sCameraSettings[camera->setting].cameraModes[camera->mode].funcIdx](camera);
+#ifdef __ANDROID__
+        Camera_TouchTurn(camera);
+#endif
     } else if (camera->player != NULL) {
         OLib_Vec3fDiffToVecSphGeo(&eyeAtAngle, &camera->at, &camera->eye);
         Camera_CalcAtDefault(camera, &eyeAtAngle, 0.0f, 0);

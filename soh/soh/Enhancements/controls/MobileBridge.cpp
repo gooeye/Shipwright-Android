@@ -225,6 +225,11 @@ void TouchLook_DrawDebug() {
     ImGui::End();
 }
 
+void TouchLook_GetFrameDelta(f32* dxDp, f32* dyDp) {
+    *dxDp = sFrameX;
+    *dyDp = sFrameY;
+}
+
 s32 TouchLook_FramesSinceDrag() {
     return sFramesSinceDrag;
 }
@@ -238,8 +243,11 @@ void TouchLook_ApplyThirdPerson(f32* newCamX, f32* newCamY) {
         *newCamX = 0.0f;
         *newCamY = 0.0f;
     }
-    *newCamX -= sFrameX * kThirdPersonTurnPerDp;
-    *newCamY += sFrameY * kThirdPersonTurnPerDp;
+    // With "Camera follows movement" on, drags turn the normal camera instead (Camera_TouchTurn).
+    if (!CVarGetInteger(CVAR_SETTING("Mobile.CameraFollowsMovement"), 1)) {
+        *newCamX -= sFrameX * kThirdPersonTurnPerDp;
+        *newCamY += sFrameY * kThirdPersonTurnPerDp;
+    }
 }
 
 JNIEXPORT void JNICALL Java_com_dishii_soh_MainActivity_addLookDelta(JNIEnv* env, jobject obj, jfloat dxDp,
