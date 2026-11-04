@@ -183,7 +183,7 @@ void SohMenu::AddMenuTouch() {
     AddWidget(path, "Show Camera Debug Info", WIDGET_CVAR_CHECKBOX)
         .CVar(CVAR_SETTING("Mobile.CameraDebug"))
         .RaceDisable(false)
-        .Options(CheckboxOptions().DefaultValue(true));
+        .Options(CheckboxOptions());
     AddWidget(path, "Show Developer Menus (after restart)", WIDGET_CVAR_CHECKBOX)
         .CVar(CVAR_SETTING("Mobile.ShowDevMenus"))
         .RaceDisable(false)

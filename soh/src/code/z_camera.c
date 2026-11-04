@@ -37,14 +37,9 @@ s32 Camera_UpdateWater(Camera* camera);
 
 #include "z_camera_data.inc"
 
-// Free Look camera (manual camera control). On Android, dragging the screen uses it too, with its
-// own setting so it works even when the controller Free Look option is off.
+// Free Look camera (manual camera control with the right stick or mouse). Touch dragging on
+// Android has its own camera handling, see Camera_TouchTurn.
 s32 Camera_FreeLookEnabled(void) {
-#ifdef __ANDROID__
-    if (CVarGetInteger(CVAR_SETTING("Mobile.DragToLook"), 1)) {
-        return true;
-    }
-#endif
     return CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0);
 }
 
@@ -1441,38 +1436,69 @@ s32 Camera_Noop(Camera* camera) {
 }
 
 #ifdef __ANDROID__
-// Dragging the screen with "Camera follows movement" on: turn the normal camera around Link by
-// rotating where it is (and where it's heading) about the point it looks at. The normal camera
-// carries on from there, so walking still swings it behind Link the usual way.
-// With the option off, dragging goes through the Free Look camera instead (see SetCameraManual).
+// Touch camera. The normal camera recomputes its angle every frame (swinging behind Link as he
+// moves and easing the tilt back), so a drag can't just nudge it. Instead, once you drag, the
+// camera holds the angle you dragged it to; it still follows Link's position and stays out of
+// walls. With "Camera follows movement" on (default), walking hands control back to the normal
+// camera; with it off the angle is always held, so walking never turns the view.
+static bool sTouchHold = false;
+static s16 sTouchHoldYaw;
+static s16 sTouchHoldPitch;
+
 static void Camera_TouchTurn(Camera* camera) {
-    f32 dx, dy;
-    TouchLook_GetFrameDelta(&dx, &dy);
-    if ((dx == 0.0f && dy == 0.0f) || !CVarGetInteger(CVAR_SETTING("Mobile.DragToLook"), 1) ||
-        !CVarGetInteger(CVAR_SETTING("Mobile.CameraFollowsMovement"), 1) || camera->play->manualCamera ||
-        camera != camera->play->cameraPtrs[camera->play->activeCamera] || camera->mode != CAM_MODE_NORMAL ||
-        camera->play->csCtx.state != CS_STATE_IDLE) {
+    if (camera != camera->play->cameraPtrs[camera->play->activeCamera]) {
         return;
     }
-    bool invertX = CVarGetInteger(CVAR_SETTING("FreeLook.InvertXAxis"), 0) !=
-                   CVarGetInteger(CVAR_ENHANCEMENT("MirroredWorld"), 0);
-    bool invertY = CVarGetInteger(CVAR_SETTING("FreeLook.InvertYAxis"), 1);
-    s16 yaw = (s16)(-dx * 100.0f * CVarGetFloat(CVAR_SETTING("FreeLook.CameraSensitivity.X"), 1.0f) *
-                    (invertX ? -1 : 1));
-    s16 pitch = (s16)(dy * 100.0f * CVarGetFloat(CVAR_SETTING("FreeLook.CameraSensitivity.Y"), 1.0f) *
-                      (invertY ? 1 : -1));
+    if (!CVarGetInteger(CVAR_SETTING("Mobile.DragToLook"), 1) || camera->play->manualCamera ||
+        camera->mode != CAM_MODE_NORMAL || camera->play->csCtx.state != CS_STATE_IDLE || camera->player == NULL) {
+        sTouchHold = false; // targeting, first person, cutscenes etc. start from the normal camera
+        return;
+    }
 
+    f32 dx, dy;
+    TouchLook_GetFrameDelta(&dx, &dy);
+    bool dragging = dx != 0.0f || dy != 0.0f;
+    bool follow = CVarGetInteger(CVAR_SETTING("Mobile.CameraFollowsMovement"), 1);
+    Input* input = &D_8015BD7C->state.input[0];
+    bool walking = ABS(input->rel.stick_x) > 8 || ABS(input->rel.stick_y) > 8;
+
+    if (follow && sTouchHold && walking && !dragging && TouchLook_FramesSinceDrag() > 10) {
+        sTouchHold = false;
+    }
+    if (!sTouchHold && (dragging || !follow)) {
+        VecSph start;
+        OLib_Vec3fDiffToVecSphGeo(&start, &camera->at, &camera->eyeNext);
+        sTouchHold = true;
+        sTouchHoldYaw = start.yaw;
+        sTouchHoldPitch = start.pitch;
+    }
+    if (!sTouchHold) {
+        return;
+    }
+
+    if (dragging) {
+        bool invertX = CVarGetInteger(CVAR_SETTING("FreeLook.InvertXAxis"), 0) !=
+                       CVarGetInteger(CVAR_ENHANCEMENT("MirroredWorld"), 0);
+        bool invertY = CVarGetInteger(CVAR_SETTING("FreeLook.InvertYAxis"), 1);
+        sTouchHoldYaw += (s16)(-dx * 100.0f * CVarGetFloat(CVAR_SETTING("FreeLook.CameraSensitivity.X"), 1.0f) *
+                               (invertX ? -1 : 1));
+        s32 pitch = sTouchHoldPitch + (s32)(dy * 100.0f *
+                                            CVarGetFloat(CVAR_SETTING("FreeLook.CameraSensitivity.Y"), 1.0f) *
+                                            (invertY ? 1 : -1));
+        sTouchHoldPitch = (s16)CLAMP(pitch, -0x228C, 0x32A4);
+    }
+
+    // Keep the distance the normal camera chose, at the held angle.
     VecSph geo;
-    OLib_Vec3fDiffToVecSphGeo(&geo, &camera->at, &camera->eye);
-    geo.yaw += yaw;
-    geo.pitch = CLAMP(geo.pitch + pitch, -0x228C, 0x32A4);
-    Camera_Vec3fVecSphGeoAdd(&camera->eye, &camera->at, &geo);
-    gTouchDbgCamYaw = geo.yaw;
-
     OLib_Vec3fDiffToVecSphGeo(&geo, &camera->at, &camera->eyeNext);
-    geo.yaw += yaw;
-    geo.pitch = CLAMP(geo.pitch + pitch, -0x228C, 0x32A4);
+    geo.yaw = sTouchHoldYaw;
+    geo.pitch = sTouchHoldPitch;
     Camera_Vec3fVecSphGeoAdd(&camera->eyeNext, &camera->at, &geo);
+    CamColChk col;
+    col.pos = camera->eyeNext;
+    Camera_BGCheckInfo(camera, &camera->at, &col);
+    camera->eye = col.pos;
+    gTouchDbgCamYaw = sTouchHoldYaw;
 }
 #endif
 
@@ -1498,24 +1524,6 @@ s32 SetCameraManual(Camera* camera) {
 
 #ifdef __ANDROID__
     gTouchDbgManualChecks++;
-    {
-        // "Camera follows movement" (on by default): after looking around by dragging, walking
-        // with the stick hands the camera back to the normal follow camera. Off: the camera keeps
-        // its angle while walking, so e.g. walking back towards it doesn't turn the view around.
-        Input* input = &D_8015BD7C->state.input[0];
-        bool moving = ABS(input->rel.stick_x) > 8 || ABS(input->rel.stick_y) > 8;
-        if (CVarGetInteger(CVAR_SETTING("Mobile.CameraFollowsMovement"), 1)) {
-            if (camera->play->manualCamera && moving && TouchLook_FramesSinceDrag() > 20) {
-                camera->play->manualCamera = false;
-            }
-        } else if (!camera->play->manualCamera) {
-            camera->play->manualCamera = true;
-            VecSph eyeAdjustment;
-            OLib_Vec3fDiffToVecSphGeo(&eyeAdjustment, &camera->at, &camera->eye);
-            camera->play->camX = eyeAdjustment.yaw;
-            camera->play->camY = eyeAdjustment.pitch;
-        }
-    }
     gTouchDbgManualCamera = camera->play->manualCamera;
     if (camera->play->manualCamera) {
         gTouchDbgCamYaw = camera->play->camX;

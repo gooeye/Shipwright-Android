@@ -1436,7 +1436,7 @@ void SohInputEditorWindow::DrawCameraControlPanel() {
                      .DefaultValue(true)
                      .Tooltip("Drag anywhere on the screen that isn't a touch button to move the camera."));
     CVarCheckbox("Show Camera Debug Info", CVAR_SETTING("Mobile.CameraDebug"),
-                 CheckboxOptions().Color(THEME_COLOR).DefaultValue(true).Tooltip(
+                 CheckboxOptions().Color(THEME_COLOR).Tooltip(
                      "Shows what the touch camera is doing in the top-left corner, to help find problems."));
     CVarCheckbox("Camera Follows Movement", CVAR_SETTING("Mobile.CameraFollowsMovement"),
                  CheckboxOptions()

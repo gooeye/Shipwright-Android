@@ -27,8 +27,7 @@ extern "C" PlayState* gPlayState;
 
 namespace {
 
-// Camera turn per dp of finger travel, in binary angle units (0x10000 = 360 degrees).
-constexpr float kThirdPersonTurnPerDp = 100.0f;
+// Aim turn per dp of finger travel, in binary angle units (0x10000 = 360 degrees).
 constexpr float kFirstPersonTurnPerDp = 30.0f;
 
 struct StateRequest {
@@ -173,7 +172,7 @@ static float sDbgDragTotal = 0.0f;
 static s32 sDbgDragEvents = 0;
 
 void TouchLook_DrawDebug() {
-    if (!CVarGetInteger(CVAR_SETTING("Mobile.CameraDebug"), 1)) {
+    if (!CVarGetInteger(CVAR_SETTING("Mobile.CameraDebug"), 0)) {
         return;
     }
     static s32 checks = 0;
@@ -243,11 +242,7 @@ void TouchLook_ApplyThirdPerson(f32* newCamX, f32* newCamY) {
         *newCamX = 0.0f;
         *newCamY = 0.0f;
     }
-    // With "Camera follows movement" on, drags turn the normal camera instead (Camera_TouchTurn).
-    if (!CVarGetInteger(CVAR_SETTING("Mobile.CameraFollowsMovement"), 1)) {
-        *newCamX -= sFrameX * kThirdPersonTurnPerDp;
-        *newCamY += sFrameY * kThirdPersonTurnPerDp;
-    }
+    // Touch drags turn the camera in Camera_TouchTurn (z_camera.c), not through Free Look.
 }
 
 JNIEXPORT void JNICALL Java_com_dishii_soh_MainActivity_addLookDelta(JNIEnv* env, jobject obj, jfloat dxDp,
